@@ -102,20 +102,20 @@ main() {
       ;;
   esac
 
-  local popup_command status_command
-  popup_command="cd '$CURRENT_DIR' && bun run '$CURRENT_DIR/src/cli.ts' popup --provider '$provider' --width '$popup_width' --height '$popup_height' --title '$popup_title'"
+  local switch_command status_command
+  switch_command="cd '$CURRENT_DIR' && bun run '$CURRENT_DIR/src/cli.ts' switch --provider '$provider'"
   status_command="cd '$CURRENT_DIR' && bun run '$CURRENT_DIR/src/cli.ts' status --style '$status_style' --provider '$provider'"
 
   if [ -n "$server_map" ]; then
-    popup_command="$popup_command --server-map '$server_map'"
+    switch_command="$switch_command --server-map '$server_map'"
     status_command="$status_command --server-map '$server_map'"
   fi
 
   if [ -n "$popup_filter_arg" ]; then
-    popup_command="$popup_command $popup_filter_arg"
+    switch_command="$switch_command $popup_filter_arg"
   fi
 
-  tmux bind-key "$key" run-shell "$popup_command"
+  tmux bind-key "$key" display-popup -E -w "$popup_width" -h "$popup_height" -T "$popup_title" "$switch_command"
 
   if [ -n "$previous_status_segment" ]; then
     remove_status_segment "$previous_status_option" "$previous_status_segment"

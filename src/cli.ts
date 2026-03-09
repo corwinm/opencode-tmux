@@ -96,6 +96,10 @@ function tmuxDoubleQuote(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`;
 }
 
+function buildShellRunCommand(args: string[]): string {
+  return `cd ${shellEscape(process.cwd())} && bun run ${buildSelfCommand(args)}`;
+}
+
 function buildSelfCommand(args: string[]): string {
   return [CLI_PATH, ...args].map(shellEscape).join(" ");
 }
@@ -384,28 +388,28 @@ function escapeRegExp(value: string): string {
 }
 
 function buildTmuxSnippet(options: TmuxConfigOptions): string {
-  const popupArgs = ["popup"];
+  const switchArgs = ["switch"];
   const statusArgs = ["status", "--style", "tmux"];
 
   if (options.provider) {
-    popupArgs.push("--provider", options.provider);
+    switchArgs.push("--provider", options.provider);
     statusArgs.push("--provider", options.provider);
   }
 
   if (options.serverMap) {
-    popupArgs.push("--server-map", options.serverMap);
+    switchArgs.push("--server-map", options.serverMap);
     statusArgs.push("--server-map", options.serverMap);
   }
 
-  popupArgs.push(...getPopupFilterArgs(options.popupFilter));
+  switchArgs.push(...getPopupFilterArgs(options.popupFilter));
 
-  const popupCommand = `cd ${shellEscape(process.cwd())} && bun run ${buildSelfCommand(popupArgs)}`;
-  const statusCommand = `cd ${shellEscape(process.cwd())} && bun run ${buildSelfCommand(statusArgs)}`;
+  const switchCommand = buildShellRunCommand(switchArgs);
+  const statusCommand = buildShellRunCommand(statusArgs);
   const key = options.key ?? "O";
 
   return [
     "# >>> opencode-tmux >>>",
-    `bind-key ${key} run-shell ${shellEscape(popupCommand)}`,
+    `bind-key ${key} display-popup -E -w 90% -h 80% -T ${tmuxDoubleQuote("OpenCode Sessions")} ${tmuxDoubleQuote(switchCommand)}`,
     `set -g status-right ${tmuxDoubleQuote(`#(${statusCommand})`)}`,
     "# <<< opencode-tmux <<<",
   ].join("\n");
