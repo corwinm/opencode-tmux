@@ -1,0 +1,142 @@
+import type { InspectResult, PaneRuntimeSummary } from "../types";
+
+const columns = ["TARGET", "ACTIVE", "STATUS", "SRC", "CONF", "TITLE", "PATH", "SIGNALS"] as const;
+
+function pad(value: string, width: number): string {
+  return value.padEnd(width, " ");
+}
+
+function truncate(value: string, maxWidth: number): string {
+  if (value.length <= maxWidth) {
+    return value;
+  }
+
+  if (maxWidth <= 1) {
+    return value.slice(0, maxWidth);
+  }
+
+  return `${value.slice(0, maxWidth - 1)}...`;
+}
+
+export function renderPaneTable(panes: PaneRuntimeSummary[]): string {
+  if (panes.length === 0) {
+    return "No likely opencode tmux panes found.";
+  }
+
+  const rows = panes.map((entry) => ({
+    target: entry.pane.target,
+    active: entry.pane.isActive ? "*" : "",
+    status: entry.runtime.status,
+    source: entry.runtime.source.replace("sqlite-", "sql-"),
+    confidence: entry.detection.confidence,
+    title: truncate(entry.pane.paneTitle || "(untitled)", 40),
+    path: truncate(entry.pane.currentPath, 48),
+    signals: truncate(entry.detection.reasons.join(", "), 40),
+  }));
+
+  const widths = {
+    target: Math.max(columns[0].length, ...rows.map((row) => row.target.length)),
+    active: columns[1].length,
+    status: Math.max(columns[2].length, ...rows.map((row) => row.status.length)),
+    source: Math.max(columns[3].length, ...rows.map((row) => row.source.length)),
+    confidence: Math.max(columns[4].length, ...rows.map((row) => row.confidence.length)),
+    title: Math.max(columns[5].length, ...rows.map((row) => row.title.length)),
+    path: Math.max(columns[6].length, ...rows.map((row) => row.path.length)),
+    signals: Math.max(columns[7].length, ...rows.map((row) => row.signals.length)),
+  };
+
+  const lines = [
+    [
+      pad(columns[0], widths.target),
+      pad(columns[1], widths.active),
+      pad(columns[2], widths.status),
+      pad(columns[3], widths.source),
+      pad(columns[4], widths.confidence),
+      pad(columns[5], widths.title),
+      pad(columns[6], widths.path),
+      pad(columns[7], widths.signals),
+    ].join("  "),
+  ];
+
+  for (const row of rows) {
+    lines.push(
+      [
+        pad(row.target, widths.target),
+        pad(row.active, widths.active),
+        pad(row.status, widths.status),
+        pad(row.source, widths.source),
+        pad(row.confidence, widths.confidence),
+        pad(row.title, widths.title),
+        pad(row.path, widths.path),
+        pad(row.signals, widths.signals),
+      ].join("  "),
+    );
+  }
+
+  return lines.join("\n");
+}
+
+function formatBoolean(value: boolean): string {
+  return value ? "yes" : "no";
+}
+
+export function renderInspectResult(result: InspectResult): string {
+  const { pane, detection, runtime } = result.summary;
+
+  const lines = [
+    `Target: ${result.target}`,
+    "",
+    "Pane",
+    `  Session: ${pane.sessionName}`,
+    `  Window: ${pane.windowIndex}`,
+    `  Pane: ${pane.paneIndex}`,
+    `  Pane ID: ${pane.paneId}`,
+    `  Title: ${pane.paneTitle || "(untitled)"}`,
+    `  Command: ${pane.currentCommand}`,
+    `  Path: ${pane.currentPath}`,
+    `  Active: ${formatBoolean(pane.isActive)}`,
+    `  TTY: ${pane.tty}`,
+    "",
+    "Detection",
+    `  Is OpenCode: ${formatBoolean(detection.isOpencode)}`,
+    `  Confidence: ${detection.confidence}`,
+    `  Signals: ${detection.reasons.length > 0 ? detection.reasons.join(", ") : "none"}`,
+    "",
+    "Runtime",
+    `  Status: ${runtime.status}`,
+    `  Source: ${runtime.source}`,
+    `  Detail: ${runtime.detail}`,
+  ];
+
+  if (runtime.session) {
+    lines.push(
+      `  Session ID: ${runtime.session.id}`,
+      `  Session Directory: ${runtime.session.directory}`,
+      `  Session Title: ${runtime.session.title}`,
+      `  Session Updated: ${new Date(runtime.session.timeUpdated).toISOString()}`,
+    );
+  } else {
+    lines.push("  Session: none");
+  }
+
+  return lines.join("\n");
+}
+
+export function renderSwitchChoices(panes: PaneRuntimeSummary[]): string {
+  if (panes.length === 0) {
+    return "No likely opencode tmux panes found.";
+  }
+
+  const lines = ["Select an opencode pane:", ""];
+
+  for (const [index, entry] of panes.entries()) {
+    const marker = entry.pane.isActive ? "*" : " ";
+    const title = truncate(entry.pane.paneTitle || "(untitled)", 36);
+    const path = truncate(entry.pane.currentPath, 44);
+    lines.push(
+      `${String(index + 1).padStart(2, " ")}. [${marker}] ${entry.pane.target}  ${entry.runtime.status}  ${title}  ${path}`,
+    );
+  }
+
+  return lines.join("\n");
+}
