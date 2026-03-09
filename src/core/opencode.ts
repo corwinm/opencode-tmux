@@ -30,6 +30,11 @@ interface RunningPartRow {
   option_count: number | null;
 }
 
+interface WorkflowStateRow {
+  last_step_finish: number | null;
+  last_step_start: number | null;
+}
+
 interface ServerStatusResult {
   endpoint: string;
   info: RuntimeInfo;
@@ -121,6 +126,20 @@ function getRunningPart(database: Database, sessionId: string): RunningPartRow |
     .get(sessionId) as RunningPartRow | null;
 }
 
+function getWorkflowState(database: Database, sessionId: string): WorkflowStateRow | null {
+  return database
+    .query(
+      `
+        SELECT
+          MAX(CASE WHEN json_extract(data, '$.type') = 'step-start' THEN time_updated END) AS last_step_start,
+          MAX(CASE WHEN json_extract(data, '$.type') = 'step-finish' THEN time_updated END) AS last_step_finish
+        FROM part
+        WHERE session_id = ?1
+      `,
+    )
+    .get(sessionId) as WorkflowStateRow | null;
+}
+
 function createRuntimeInfo(input: {
   activity: RuntimeInfo["activity"];
   status: RuntimeStatus;
@@ -145,7 +164,15 @@ function createRuntimeInfo(input: {
   };
 }
 
-function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartRow | null): RuntimeInfo {
+function hasUnfinishedStep(workflowState: WorkflowStateRow | null): boolean {
+  if (!workflowState?.last_step_start) {
+    return false;
+  }
+
+  return workflowState.last_step_start > (workflowState.last_step_finish ?? 0);
+}
+
+function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartRow | null, workflowState: WorkflowStateRow | null): RuntimeInfo {
   if (!session) {
     return createRuntimeInfo({
       activity: "unknown",
@@ -160,6 +187,19 @@ function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartR
   }
 
   if (!runningPart || runningPart.status !== "running") {
+    if (hasUnfinishedStep(workflowState)) {
+      return createRuntimeInfo({
+        activity: "busy",
+        status: "running",
+        source: "sqlite-exact",
+        strategy: "exact",
+        provider: "sqlite",
+        heuristic: false,
+        session,
+        detail: "session has an unfinished step",
+      });
+    }
+
     return createRuntimeInfo({
       activity: "idle",
       status: "idle",
@@ -203,11 +243,12 @@ function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartR
 function classifyRuntimeWithSource(
   session: SessionMatch,
   runningPart: RunningPartRow | null,
+  workflowState: WorkflowStateRow | null,
   source: RuntimeSource,
   strategy: RuntimeInfo["match"]["strategy"],
   detailPrefix: string,
 ): RuntimeInfo {
-  const runtime = classifyRuntime(session, runningPart);
+  const runtime = classifyRuntime(session, runningPart, workflowState);
 
   return {
     ...runtime,
@@ -228,9 +269,9 @@ function getHeuristicSessionMatch(database: Database, directory: string): Heuris
     return null;
   }
 
-  const runningDescendants = descendants.filter((session) => {
-    const runningPart = getRunningPart(database, session.id);
-    return runningPart?.status === "running";
+    const runningDescendants = descendants.filter((session) => {
+      const runningPart = getRunningPart(database, session.id);
+    return runningPart?.status === "running" || hasUnfinishedStep(getWorkflowState(database, session.id));
   });
 
   if (runningDescendants.length === 1) {
@@ -313,18 +354,21 @@ function attachRuntimeWithSqlite(panes: DiscoveredPane[]): PaneRuntimeSummary[] 
 
       if (exactSession) {
         const runningPart = getRunningPart(database, exactSession.id);
-        return { ...entry, runtime: classifyRuntime(exactSession, runningPart) };
+        const workflowState = getWorkflowState(database, exactSession.id);
+        return { ...entry, runtime: classifyRuntime(exactSession, runningPart, workflowState) };
       }
 
       const heuristicMatch = getHeuristicSessionMatch(database, entry.pane.currentPath);
 
       if (heuristicMatch) {
         const runningPart = getRunningPart(database, heuristicMatch.session.id);
+        const workflowState = getWorkflowState(database, heuristicMatch.session.id);
         return {
           ...entry,
           runtime: classifyRuntimeWithSource(
             heuristicMatch.session,
             runningPart,
+            workflowState,
             heuristicMatch.source,
             heuristicMatch.strategy,
             heuristicMatch.detailPrefix,
@@ -566,7 +610,7 @@ async function attachRuntimeWithServerMap(
 
       if (!endpoint) {
         if (sqliteFallback) {
-          return sqliteFallback[index] ?? { ...entry, runtime: classifyRuntime(null, null) };
+          return sqliteFallback[index] ?? { ...entry, runtime: classifyRuntime(null, null, null) };
         }
 
         return {
@@ -588,13 +632,13 @@ async function attachRuntimeWithServerMap(
         const result = await fetchServerStatus(entry.pane.target, endpoint);
 
         if (sqliteFallback && shouldFallbackFromServer(result.info)) {
-          return sqliteFallback[index] ?? { ...entry, runtime: classifyRuntime(null, null) };
+          return sqliteFallback[index] ?? { ...entry, runtime: classifyRuntime(null, null, null) };
         }
 
         return { ...entry, runtime: result.info };
       } catch (error) {
         if (sqliteFallback) {
-          return sqliteFallback[index] ?? { ...entry, runtime: classifyRuntime(null, null) };
+          return sqliteFallback[index] ?? { ...entry, runtime: classifyRuntime(null, null, null) };
         }
 
         const message = error instanceof Error ? error.message : String(error);
