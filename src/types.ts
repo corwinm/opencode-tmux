@@ -27,6 +27,7 @@ export interface DiscoveredPane {
 }
 
 export type RuntimeStatus = "running" | "waiting-question" | "waiting-input" | "idle" | "unknown";
+export type RuntimeActivity = "busy" | "idle" | "unknown";
 
 export interface SessionMatch {
   id: string;
@@ -35,9 +36,24 @@ export interface SessionMatch {
   timeUpdated: number;
 }
 
+export type RuntimeSource =
+  | "sqlite-exact"
+  | "sqlite-descendant-running"
+  | "sqlite-descendant-recent"
+  | "sqlite-descendant-only"
+  | "unmapped";
+
+export interface RuntimeMatchInfo {
+  strategy: "exact" | "descendant-running" | "descendant-recent" | "descendant-only" | "unmapped";
+  provider: "sqlite" | "none";
+  heuristic: boolean;
+}
+
 export interface RuntimeInfo {
+  activity: RuntimeActivity;
   status: RuntimeStatus;
-  source: "sqlite-exact" | "sqlite-descendant-running" | "sqlite-descendant-recent" | "sqlite-descendant-only" | "unmapped";
+  source: RuntimeSource;
+  match: RuntimeMatchInfo;
   session: SessionMatch | null;
   detail: string;
 }
@@ -49,4 +65,11 @@ export interface PaneRuntimeSummary extends DiscoveredPane {
 export interface InspectResult {
   target: PaneTarget;
   summary: PaneRuntimeSummary;
+}
+
+export interface PaneFilterOptions {
+  active?: boolean;
+  busy?: boolean;
+  waiting?: boolean;
+  running?: boolean;
 }

@@ -1,6 +1,6 @@
 import type { InspectResult, PaneRuntimeSummary } from "../types";
 
-const columns = ["TARGET", "ACTIVE", "STATUS", "SRC", "CONF", "TITLE", "PATH", "SIGNALS"] as const;
+const columns = ["TARGET", "ACTIVE", "ACT", "STATUS", "SRC", "CONF", "SESSION", "TITLE", "PATH", "SIGNALS"] as const;
 
 function pad(value: string, width: number): string {
   return value.padEnd(width, " ");
@@ -26,9 +26,11 @@ export function renderPaneTable(panes: PaneRuntimeSummary[]): string {
   const rows = panes.map((entry) => ({
     target: entry.pane.target,
     active: entry.pane.isActive ? "*" : "",
+    activity: entry.runtime.activity,
     status: entry.runtime.status,
     source: entry.runtime.source.replace("sqlite-", "sql-"),
     confidence: entry.detection.confidence,
+    sessionTitle: truncate(entry.runtime.session?.title ?? "(unmatched)", 34),
     title: truncate(entry.pane.paneTitle || "(untitled)", 40),
     path: truncate(entry.pane.currentPath, 48),
     signals: truncate(entry.detection.reasons.join(", "), 40),
@@ -37,24 +39,28 @@ export function renderPaneTable(panes: PaneRuntimeSummary[]): string {
   const widths = {
     target: Math.max(columns[0].length, ...rows.map((row) => row.target.length)),
     active: columns[1].length,
-    status: Math.max(columns[2].length, ...rows.map((row) => row.status.length)),
-    source: Math.max(columns[3].length, ...rows.map((row) => row.source.length)),
-    confidence: Math.max(columns[4].length, ...rows.map((row) => row.confidence.length)),
-    title: Math.max(columns[5].length, ...rows.map((row) => row.title.length)),
-    path: Math.max(columns[6].length, ...rows.map((row) => row.path.length)),
-    signals: Math.max(columns[7].length, ...rows.map((row) => row.signals.length)),
+    activity: Math.max(columns[2].length, ...rows.map((row) => row.activity.length)),
+    status: Math.max(columns[3].length, ...rows.map((row) => row.status.length)),
+    source: Math.max(columns[4].length, ...rows.map((row) => row.source.length)),
+    confidence: Math.max(columns[5].length, ...rows.map((row) => row.confidence.length)),
+    sessionTitle: Math.max(columns[6].length, ...rows.map((row) => row.sessionTitle.length)),
+    title: Math.max(columns[7].length, ...rows.map((row) => row.title.length)),
+    path: Math.max(columns[8].length, ...rows.map((row) => row.path.length)),
+    signals: Math.max(columns[9].length, ...rows.map((row) => row.signals.length)),
   };
 
   const lines = [
     [
       pad(columns[0], widths.target),
       pad(columns[1], widths.active),
-      pad(columns[2], widths.status),
-      pad(columns[3], widths.source),
-      pad(columns[4], widths.confidence),
-      pad(columns[5], widths.title),
-      pad(columns[6], widths.path),
-      pad(columns[7], widths.signals),
+      pad(columns[2], widths.activity),
+      pad(columns[3], widths.status),
+      pad(columns[4], widths.source),
+      pad(columns[5], widths.confidence),
+      pad(columns[6], widths.sessionTitle),
+      pad(columns[7], widths.title),
+      pad(columns[8], widths.path),
+      pad(columns[9], widths.signals),
     ].join("  "),
   ];
 
@@ -63,9 +69,11 @@ export function renderPaneTable(panes: PaneRuntimeSummary[]): string {
       [
         pad(row.target, widths.target),
         pad(row.active, widths.active),
+        pad(row.activity, widths.activity),
         pad(row.status, widths.status),
         pad(row.source, widths.source),
         pad(row.confidence, widths.confidence),
+        pad(row.sessionTitle, widths.sessionTitle),
         pad(row.title, widths.title),
         pad(row.path, widths.path),
         pad(row.signals, widths.signals),
@@ -103,8 +111,12 @@ export function renderInspectResult(result: InspectResult): string {
     `  Signals: ${detection.reasons.length > 0 ? detection.reasons.join(", ") : "none"}`,
     "",
     "Runtime",
+    `  Activity: ${runtime.activity}`,
     `  Status: ${runtime.status}`,
     `  Source: ${runtime.source}`,
+    `  Match Strategy: ${runtime.match.strategy}`,
+    `  Match Provider: ${runtime.match.provider}`,
+    `  Match Heuristic: ${formatBoolean(runtime.match.heuristic)}`,
     `  Detail: ${runtime.detail}`,
   ];
 
@@ -131,10 +143,11 @@ export function renderSwitchChoices(panes: PaneRuntimeSummary[]): string {
 
   for (const [index, entry] of panes.entries()) {
     const marker = entry.pane.isActive ? "*" : " ";
+    const sessionTitle = truncate(entry.runtime.session?.title ?? "(unmatched)", 28);
     const title = truncate(entry.pane.paneTitle || "(untitled)", 36);
-    const path = truncate(entry.pane.currentPath, 44);
+    const path = truncate(entry.pane.currentPath, 32);
     lines.push(
-      `${String(index + 1).padStart(2, " ")}. [${marker}] ${entry.pane.target}  ${entry.runtime.status}  ${title}  ${path}`,
+      `${String(index + 1).padStart(2, " ")}. [${marker}] ${entry.pane.target}  ${entry.runtime.activity}/${entry.runtime.status}  ${sessionTitle}  ${title}  ${path}`,
     );
   }
 

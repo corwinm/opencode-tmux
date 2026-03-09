@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import type { DiscoveredPane, PaneRuntimeSummary, RuntimeInfo, RuntimeStatus, SessionMatch } from "../types";
+import type { DiscoveredPane, PaneRuntimeSummary, RuntimeInfo, RuntimeSource, RuntimeStatus, SessionMatch } from "../types";
 
 const RECENT_SESSION_WINDOW_MS = 30 * 60 * 1000;
 
@@ -107,8 +107,14 @@ function getRunningPart(database: Database, sessionId: string): RunningPartRow |
 function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartRow | null): RuntimeInfo {
   if (!session) {
     return {
+      activity: "unknown",
       status: "unknown",
       source: "unmapped",
+      match: {
+        strategy: "unmapped",
+        provider: "none",
+        heuristic: false,
+      },
       session: null,
       detail: "no matching opencode session for pane cwd",
     };
@@ -116,8 +122,14 @@ function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartR
 
   if (!runningPart || runningPart.status !== "running") {
     return {
+      activity: "idle",
       status: "idle",
       source: "sqlite-exact",
+      match: {
+        strategy: "exact",
+        provider: "sqlite",
+        heuristic: false,
+      },
       session,
       detail: "no running tool parts for matched session",
     };
@@ -131,16 +143,28 @@ function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartR
     const detail = optionCount > 0 ? "running question tool with options" : "running question tool without options";
 
     return {
+      activity: "busy",
       status,
       source: "sqlite-exact",
+      match: {
+        strategy: "exact",
+        provider: "sqlite",
+        heuristic: false,
+      },
       session,
       detail,
     };
   }
 
   return {
+    activity: "busy",
     status: "running",
     source: "sqlite-exact",
+    match: {
+      strategy: "exact",
+      provider: "sqlite",
+      heuristic: false,
+    },
     session,
     detail: `running ${tool} tool`,
   };
@@ -149,7 +173,8 @@ function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartR
 function classifyRuntimeWithSource(
   session: SessionMatch,
   runningPart: RunningPartRow | null,
-  source: RuntimeInfo["source"],
+  source: RuntimeSource,
+  strategy: RuntimeInfo["match"]["strategy"],
   detailPrefix: string,
 ): RuntimeInfo {
   const runtime = classifyRuntime(session, runningPart);
@@ -157,6 +182,11 @@ function classifyRuntimeWithSource(
   return {
     ...runtime,
     source,
+    match: {
+      strategy,
+      provider: "sqlite",
+      heuristic: true,
+    },
     detail: `${detailPrefix}; ${runtime.detail}`,
   };
 }
@@ -164,7 +194,7 @@ function classifyRuntimeWithSource(
 function getHeuristicSessionMatch(
   database: Database,
   directory: string,
-): { session: SessionMatch; source: RuntimeInfo["source"]; detailPrefix: string } | null {
+): { session: SessionMatch; source: RuntimeSource; strategy: RuntimeInfo["match"]["strategy"]; detailPrefix: string } | null {
   const descendants = getDescendantSessions(database, directory);
 
   if (descendants.length === 0) {
@@ -186,6 +216,7 @@ function getHeuristicSessionMatch(
     return {
       session,
       source: "sqlite-descendant-running",
+      strategy: "descendant-running",
       detailPrefix: "matched unique running descendant session under pane cwd",
     };
   }
@@ -203,6 +234,7 @@ function getHeuristicSessionMatch(
     return {
       session,
       source: "sqlite-descendant-recent",
+      strategy: "descendant-recent",
       detailPrefix: "matched unique recent descendant session under pane cwd",
     };
   }
@@ -217,6 +249,7 @@ function getHeuristicSessionMatch(
     return {
       session,
       source: "sqlite-descendant-only",
+      strategy: "descendant-only",
       detailPrefix: "matched only descendant session under pane cwd",
     };
   }
@@ -235,8 +268,14 @@ export function attachRuntimeToPanes(panes: DiscoveredPane[]): PaneRuntimeSummar
     return panes.map((entry) => ({
       ...entry,
       runtime: {
+        activity: "unknown",
         status: "unknown",
         source: "unmapped",
+        match: {
+          strategy: "unmapped",
+          provider: "none",
+          heuristic: false,
+        },
         session: null,
         detail: message,
       },
@@ -267,6 +306,7 @@ export function attachRuntimeToPanes(panes: DiscoveredPane[]): PaneRuntimeSummar
             heuristicMatch.session,
             runningPart,
             heuristicMatch.source,
+            heuristicMatch.strategy,
             heuristicMatch.detailPrefix,
           ),
         };
@@ -275,8 +315,14 @@ export function attachRuntimeToPanes(panes: DiscoveredPane[]): PaneRuntimeSummar
       return {
         ...entry,
         runtime: {
+          activity: "unknown",
           status: "unknown",
           source: "unmapped",
+          match: {
+            strategy: "unmapped",
+            provider: "none",
+            heuristic: false,
+          },
           session: null,
           detail: "no exact or safe heuristic opencode session match for pane cwd",
         },
