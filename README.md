@@ -86,7 +86,7 @@ bun run src/cli.ts popup --busy
 Add the plugin to `.tmux.conf`:
 
 ```tmux
-set -g @plugin 'your-github-user/opencode-tmux'
+set -g @plugin 'corwinm/opencode-tmux'
 ```
 
 Optional TPM settings:
