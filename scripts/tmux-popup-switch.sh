@@ -7,6 +7,10 @@ cd "$CURRENT_DIR"
 
 CLI="$CURRENT_DIR/src/cli.ts"
 
+if [ -e /dev/tty ]; then
+  exec </dev/tty >/dev/tty 2>&1
+fi
+
 if [ ! -f "$CLI" ]; then
   printf 'opencode-tmux: missing CLI at %s\n' "$CLI" >&2
   exit 1

@@ -93,7 +93,8 @@ Optional TPM settings:
 
 ```tmux
 set -g @opencode-tmux-key 'O'
-set -g @opencode-tmux-popup-filter 'busy'
+set -g @opencode-tmux-launcher 'menu'
+set -g @opencode-tmux-popup-filter 'all'
 set -g @opencode-tmux-status 'on'
 set -g @opencode-tmux-status-style 'tmux'
 set -g @opencode-tmux-status-position 'right'
@@ -102,6 +103,7 @@ set -g @opencode-tmux-status-position 'right'
 Available TPM options:
 
 - `@opencode-tmux-key`
+- `@opencode-tmux-launcher` (`menu` or `popup`)
 - `@opencode-tmux-provider`
 - `@opencode-tmux-server-map`
 - `@opencode-tmux-popup-filter` (`all`, `busy`, `waiting`, `running`, `active`)
@@ -113,6 +115,12 @@ Available TPM options:
 - `@opencode-tmux-status-position` (`right` or `left`)
 
 After installing with TPM, press prefix + `I` and reload tmux if needed. TPM users also need `bun` installed because the plugin runs the local CLI.
+
+The default TPM launcher is `menu` because it is more reliable than a popup-based interactive shell on some systems. By default it shows all discovered opencode sessions with their statuses. You can opt into the popup launcher with:
+
+```tmux
+set -g @opencode-tmux-launcher 'popup'
+```
 
 To enable the status line when using TPM, add:
 

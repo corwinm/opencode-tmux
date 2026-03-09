@@ -208,12 +208,11 @@ export function renderSwitchChoices(panes: PaneRuntimeSummary[]): string {
   const lines = ["Select an opencode pane:", ""];
 
   for (const [index, entry] of panes.entries()) {
-    const marker = entry.pane.isActive ? "*" : " ";
     const sessionTitle = truncate(entry.runtime.session?.title ?? "(unmatched)", 28);
     const title = truncate(entry.pane.paneTitle || "(untitled)", 36);
     const path = truncate(entry.pane.currentPath, 32);
     lines.push(
-      `${String(index + 1).padStart(2, " ")}. [${marker}] ${entry.pane.target}  ${entry.runtime.activity}/${entry.runtime.status}  ${sessionTitle}  ${title}  ${path}`,
+      `${String(index + 1).padStart(2, " ")}. ${entry.pane.target}  ${entry.runtime.activity}/${entry.runtime.status}  ${sessionTitle}  ${title}  ${path}`,
     );
   }
 

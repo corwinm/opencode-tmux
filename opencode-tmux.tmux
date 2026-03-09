@@ -69,22 +69,35 @@ normalize_status_option() {
   esac
 }
 
+normalize_launcher() {
+  local launcher="$1"
+  case "$launcher" in
+    popup|menu|"")
+      printf '%s' "${launcher:-menu}"
+      ;;
+    *)
+      printf '%s' 'menu'
+      ;;
+  esac
+}
+
 main() {
   if ! command -v bun >/dev/null 2>&1; then
     tmux display-message "opencode-tmux: bun is required; install bun and reload TPM"
     exit 0
   fi
 
-  local key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option
+  local key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option launcher
   local previous_status_segment previous_status_option
   key="$(get_tmux_option '@opencode-tmux-key' 'O')"
   provider="$(get_tmux_option '@opencode-tmux-provider' 'auto')"
   server_map="$(get_tmux_option '@opencode-tmux-server-map' '')"
-  popup_filter="$(get_tmux_option '@opencode-tmux-popup-filter' 'busy')"
+  popup_filter="$(get_tmux_option '@opencode-tmux-popup-filter' 'all')"
   popup_width="$(get_tmux_option '@opencode-tmux-popup-width' '90%')"
   popup_height="$(get_tmux_option '@opencode-tmux-popup-height' '80%')"
   popup_title="$(get_tmux_option '@opencode-tmux-popup-title' 'OpenCode Sessions')"
-  status_enabled="$(get_tmux_option '@opencode-tmux-status' 'off')"
+  launcher="$(normalize_launcher "$(get_tmux_option '@opencode-tmux-launcher' 'menu')")"
+  status_enabled="$(get_tmux_option '@opencode-tmux-status' 'on')"
   status_style="$(get_tmux_option '@opencode-tmux-status-style' 'tmux')"
   status_position="$(get_tmux_option '@opencode-tmux-status-position' 'right')"
   previous_status_segment="$(get_tmux_option '@opencode-tmux-status-segment' '')"
@@ -106,27 +119,40 @@ main() {
       ;;
   esac
 
-  local switch_command status_command popup_script
+  local switch_command status_command popup_script menu_script bind_command
   popup_script="$CURRENT_DIR/scripts/tmux-popup-switch.sh"
+  menu_script="$CURRENT_DIR/scripts/tmux-menu-switch.sh"
 
   if [ ! -f "$popup_script" ]; then
     tmux display-message "opencode-tmux: missing scripts/tmux-popup-switch.sh in plugin directory"
     exit 0
   fi
 
+  if [ ! -f "$menu_script" ]; then
+    tmux display-message "opencode-tmux: missing scripts/tmux-menu-switch.sh in plugin directory"
+    exit 0
+  fi
+
   switch_command="$popup_script --provider '$provider'"
   status_command="cd '$CURRENT_DIR' && bun run '$CURRENT_DIR/src/cli.ts' status --style '$status_style' --provider '$provider'"
+  bind_command="$menu_script --provider '$provider'"
 
   if [ -n "$server_map" ]; then
     switch_command="$switch_command --server-map '$server_map'"
     status_command="$status_command --server-map '$server_map'"
+    bind_command="$bind_command --server-map '$server_map'"
   fi
 
   if [ -n "$popup_filter_arg" ]; then
     switch_command="$switch_command $popup_filter_arg"
+    bind_command="$bind_command $popup_filter_arg"
   fi
 
-  tmux bind-key "$key" display-popup -E -w "$popup_width" -h "$popup_height" -T "$popup_title" "$switch_command"
+  if [ "$launcher" = "popup" ]; then
+    tmux bind-key "$key" display-popup -E -w "$popup_width" -h "$popup_height" -T "$popup_title" "$switch_command"
+  else
+    tmux bind-key "$key" run-shell "$bind_command"
+  fi
 
   if [ -n "$previous_status_segment" ]; then
     remove_status_segment "$previous_status_option" "$previous_status_segment"

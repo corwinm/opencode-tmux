@@ -541,7 +541,7 @@ async function main(): Promise<void> {
     .option("--provider <provider>", "Runtime provider: auto, sqlite, or server", "auto")
     .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
     .option("--key <key>", "Tmux key binding for popup chooser", "O")
-    .option("--popup-filter <filter>", "Popup default filter: all, busy, waiting, running, or active", "busy")
+    .option("--popup-filter <filter>", "Popup default filter: all, busy, waiting, running, or active", "all")
     .action(runTmuxConfigCommand);
 
   program
@@ -550,7 +550,7 @@ async function main(): Promise<void> {
     .option("--provider <provider>", "Runtime provider: auto, sqlite, or server", "auto")
     .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
     .option("--key <key>", "Tmux key binding for popup chooser", "O")
-    .option("--popup-filter <filter>", "Popup default filter: all, busy, waiting, running, or active", "busy")
+    .option("--popup-filter <filter>", "Popup default filter: all, busy, waiting, running, or active", "all")
     .option("--file <path>", "Tmux config file to update")
     .action(runInstallTmuxCommand);
 
