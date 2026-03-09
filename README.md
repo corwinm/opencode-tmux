@@ -2,6 +2,8 @@
 
 CLI-first tooling for discovering `opencode` instances running in `tmux`.
 
+This repo can also be installed as a TPM plugin.
+
 ## Current Status
 
 The repository now has an initial Bun + TypeScript CLI scaffold and a working `list` command for discovering likely opencode panes.
@@ -78,6 +80,39 @@ Inside tmux:
 bun run src/cli.ts popup
 bun run src/cli.ts popup --busy
 ```
+
+## TPM
+
+Add the plugin to `.tmux.conf`:
+
+```tmux
+set -g @plugin 'your-github-user/opencode-tmux'
+```
+
+Optional TPM settings:
+
+```tmux
+set -g @opencode-tmux-key 'O'
+set -g @opencode-tmux-popup-filter 'busy'
+set -g @opencode-tmux-status 'on'
+set -g @opencode-tmux-status-style 'tmux'
+set -g @opencode-tmux-status-position 'right'
+```
+
+Available TPM options:
+
+- `@opencode-tmux-key`
+- `@opencode-tmux-provider`
+- `@opencode-tmux-server-map`
+- `@opencode-tmux-popup-filter` (`all`, `busy`, `waiting`, `running`, `active`)
+- `@opencode-tmux-popup-width`
+- `@opencode-tmux-popup-height`
+- `@opencode-tmux-popup-title`
+- `@opencode-tmux-status` (`on` or `off`)
+- `@opencode-tmux-status-style` (`plain` or `tmux`)
+- `@opencode-tmux-status-position` (`right` or `left`)
+
+After installing with TPM, press prefix + `I` and reload tmux if needed. TPM users also need `bun` installed because the plugin runs the local CLI.
 
 Example tmux binding:
 
