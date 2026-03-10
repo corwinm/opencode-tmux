@@ -98,6 +98,7 @@ set -g @opencode-tmux-popup-filter 'all'
 set -g @opencode-tmux-status 'on'
 set -g @opencode-tmux-status-style 'tmux'
 set -g @opencode-tmux-status-position 'right'
+set -g @opencode-tmux-status-interval '1'
 ```
 
 Available TPM options:
@@ -113,6 +114,7 @@ Available TPM options:
 - `@opencode-tmux-status` (`on` or `off`)
 - `@opencode-tmux-status-style` (`plain` or `tmux`)
 - `@opencode-tmux-status-position` (`right` or `left`)
+- `@opencode-tmux-status-interval` (tmux `status-interval`, default `1`)
 
 After installing with TPM, press prefix + `I` and reload tmux if needed. TPM users also need `bun` installed because the plugin runs the local CLI.
 
@@ -128,6 +130,7 @@ To enable the status line when using TPM, add:
 set -g @opencode-tmux-status 'on'
 set -g @opencode-tmux-status-style 'tmux'
 set -g @opencode-tmux-status-position 'right'
+set -g @opencode-tmux-status-interval '1'
 ```
 
 Then install or reload TPM:

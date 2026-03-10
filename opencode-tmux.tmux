@@ -87,7 +87,7 @@ main() {
     exit 0
   fi
 
-  local key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option launcher
+  local key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option status_interval launcher
   local previous_status_segment previous_status_option
   key="$(get_tmux_option '@opencode-tmux-key' 'O')"
   provider="$(get_tmux_option '@opencode-tmux-provider' 'auto')"
@@ -100,6 +100,7 @@ main() {
   status_enabled="$(get_tmux_option '@opencode-tmux-status' 'on')"
   status_style="$(get_tmux_option '@opencode-tmux-status-style' 'tmux')"
   status_position="$(get_tmux_option '@opencode-tmux-status-position' 'right')"
+  status_interval="$(get_tmux_option '@opencode-tmux-status-interval' '1')"
   previous_status_segment="$(get_tmux_option '@opencode-tmux-status-segment' '')"
   previous_status_option="$(get_tmux_option '@opencode-tmux-status-option' 'status-right')"
   status_option="$(normalize_status_option "$status_position")"
@@ -161,6 +162,7 @@ main() {
   if [ "$status_enabled" = "on" ]; then
     local current_status_segment
     current_status_segment="#($status_command)"
+    tmux set-option -g status-interval "$status_interval"
     append_status_segment "$status_option" "$current_status_segment"
     tmux set-option -gq @opencode-tmux-status-segment "$current_status_segment"
     tmux set-option -gq @opencode-tmux-status-option "$status_option"
