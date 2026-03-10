@@ -30,6 +30,18 @@ set -g @opencode-tmux-status-position 'right'
 set -g @opencode-tmux-status-interval '1'
 ```
 
+To match your tmux theme, you can also override the status colors:
+
+```tmux
+set -g @opencode-tmux-status-color-neutral 'default'
+set -g @opencode-tmux-status-color-idle 'colour244'
+set -g @opencode-tmux-status-color-busy 'colour81'
+set -g @opencode-tmux-status-color-waiting 'colour214'
+set -g @opencode-tmux-status-color-unknown 'colour240'
+```
+
+Using `default` is a good way to let the segment inherit your existing tmux theme colors.
+
 Then install or reload TPM:
 
 ```tmux
@@ -100,6 +112,12 @@ OC | busy | 1 wait
 OC | new | none
 ```
 
+You can also replace `OC` with your own label or a Nerd Font icon:
+
+```tmux
+set -g @opencode-tmux-status-prefix '󰆍'
+```
+
 This means:
 
 - `OC | idle | 3 idle` means the focused pane is idle and three background panes are idle
@@ -141,6 +159,12 @@ Available tmux options:
 - `@opencode-tmux-status-style` `plain` or `tmux`, default `tmux`
 - `@opencode-tmux-status-position` `right` or `left`, default `right`
 - `@opencode-tmux-status-interval` tmux `status-interval`, default `1`
+- `@opencode-tmux-status-prefix` label shown before the status summary, default `OC`
+- `@opencode-tmux-status-color-neutral` tmux color for the prefix and separators, default `colour252`
+- `@opencode-tmux-status-color-idle` tmux color for idle state, default `colour70`
+- `@opencode-tmux-status-color-busy` tmux color for busy state, default `colour220`
+- `@opencode-tmux-status-color-waiting` tmux color for waiting state, default `colour196`
+- `@opencode-tmux-status-color-unknown` tmux color for unknown/none state, default `colour244`
 
 ## Providers
 

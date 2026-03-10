@@ -124,6 +124,7 @@ main() {
   fi
 
   local key waiting_key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option status_interval launcher install_plugin
+  local status_prefix status_color_neutral status_color_busy status_color_waiting status_color_idle status_color_unknown
   local previous_status_segment previous_status_option
   key="$(get_tmux_option '@opencode-tmux-key' 'O')"
   waiting_key="$(get_tmux_option '@opencode-tmux-waiting-key' 'W')"
@@ -139,6 +140,12 @@ main() {
   status_style="$(get_tmux_option '@opencode-tmux-status-style' 'tmux')"
   status_position="$(get_tmux_option '@opencode-tmux-status-position' 'right')"
   status_interval="$(get_tmux_option '@opencode-tmux-status-interval' '1')"
+  status_prefix="$(get_tmux_option '@opencode-tmux-status-prefix' 'OC')"
+  status_color_neutral="$(get_tmux_option '@opencode-tmux-status-color-neutral' 'colour252')"
+  status_color_busy="$(get_tmux_option '@opencode-tmux-status-color-busy' 'colour220')"
+  status_color_waiting="$(get_tmux_option '@opencode-tmux-status-color-waiting' 'colour196')"
+  status_color_idle="$(get_tmux_option '@opencode-tmux-status-color-idle' 'colour70')"
+  status_color_unknown="$(get_tmux_option '@opencode-tmux-status-color-unknown' 'colour244')"
   previous_status_segment="$(get_tmux_option '@opencode-tmux-status-segment' '')"
   previous_status_option="$(get_tmux_option '@opencode-tmux-status-option' 'status-right')"
   status_option="$(normalize_status_option "$status_position")"
@@ -178,7 +185,7 @@ main() {
 
   switch_command="$popup_script --provider '$provider'"
   waiting_switch_command="$popup_script --provider '$provider' --waiting"
-  status_command="cd '$CURRENT_DIR' && bun run '$CURRENT_DIR/src/cli.ts' status --style '$status_style' --provider '$provider'"
+  status_command="cd '$CURRENT_DIR' && OPENCODE_TMUX_STATUS_PREFIX='$status_prefix' OPENCODE_TMUX_STATUS_COLOR_NEUTRAL='$status_color_neutral' OPENCODE_TMUX_STATUS_COLOR_BUSY='$status_color_busy' OPENCODE_TMUX_STATUS_COLOR_WAITING='$status_color_waiting' OPENCODE_TMUX_STATUS_COLOR_IDLE='$status_color_idle' OPENCODE_TMUX_STATUS_COLOR_UNKNOWN='$status_color_unknown' bun run '$CURRENT_DIR/src/cli.ts' status --style '$status_style' --provider '$provider'"
   bind_command="$menu_script --provider '$provider'"
   waiting_bind_command="$menu_script --provider '$provider' --waiting"
 

@@ -2,6 +2,18 @@ import type { InspectResult, PaneRuntimeSummary } from "../types";
 
 type StatusStyle = "plain" | "tmux";
 
+type StatusTone = "neutral" | "busy" | "waiting" | "idle" | "unknown";
+
+const statusToneColors: Record<StatusTone, string> = {
+  neutral: process.env.OPENCODE_TMUX_STATUS_COLOR_NEUTRAL ?? "colour252",
+  busy: process.env.OPENCODE_TMUX_STATUS_COLOR_BUSY ?? "colour220",
+  waiting: process.env.OPENCODE_TMUX_STATUS_COLOR_WAITING ?? "colour196",
+  idle: process.env.OPENCODE_TMUX_STATUS_COLOR_IDLE ?? "colour70",
+  unknown: process.env.OPENCODE_TMUX_STATUS_COLOR_UNKNOWN ?? "colour244",
+};
+
+const statusPrefix = process.env.OPENCODE_TMUX_STATUS_PREFIX ?? "OC";
+
 const columns = ["TARGET", "ACTIVE", "ACT", "STATUS", "SRC", "CONF", "SESSION", "TITLE", "PATH", "SIGNALS"] as const;
 
 function pad(value: string, width: number): string {
@@ -204,21 +216,12 @@ export function renderSwitchChoices(panes: PaneRuntimeSummary[]): string {
   return lines.join("\n");
 }
 
-function formatStatusToken(label: string, tone: "neutral" | "busy" | "waiting" | "idle" | "unknown", style: StatusStyle): string {
+function formatStatusToken(label: string, tone: StatusTone, style: StatusStyle): string {
   if (style === "plain") {
     return label;
   }
 
-  const color =
-    tone === "busy"
-      ? "colour220"
-      : tone === "waiting"
-        ? "colour196"
-        : tone === "idle"
-          ? "colour70"
-          : tone === "unknown"
-            ? "colour244"
-            : "colour252";
+  const color = statusToneColors[tone];
 
   return `#[fg=${color}]${label}#[default]`;
 }
@@ -292,12 +295,12 @@ export function renderStatusSummary(
   if (current) {
     const backgroundPanes = panes.filter((entry) => entry.pane.target !== current.pane.target);
 
-    return [formatStatusToken("OC", "neutral", style), formatStatusToken("|", "neutral", style), ...renderCurrentSummary(current, style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(backgroundPanes, style)].join(" ");
+    return [formatStatusToken(statusPrefix, "neutral", style), formatStatusToken("|", "neutral", style), ...renderCurrentSummary(current, style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(backgroundPanes, style)].join(" ");
   }
 
   if (options.includeCurrentPlaceholder) {
-    return [formatStatusToken("OC", "neutral", style), formatStatusToken("|", "neutral", style), ...renderCurrentSummary(null, style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(panes, style)].join(" ");
+    return [formatStatusToken(statusPrefix, "neutral", style), formatStatusToken("|", "neutral", style), ...renderCurrentSummary(null, style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(panes, style)].join(" ");
   }
 
-  return [formatStatusToken("OC", "neutral", style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(panes, style)].join(" ");
+  return [formatStatusToken(statusPrefix, "neutral", style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(panes, style)].join(" ");
 }
