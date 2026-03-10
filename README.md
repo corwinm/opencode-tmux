@@ -25,6 +25,7 @@ bun run src/cli.ts install-tmux
 bun run src/cli.ts server-map-template
 bun run src/cli.ts server-map-template --base-port 4096
 bun run src/cli.ts list --provider sqlite
+bun run src/cli.ts list --provider plugin
 bun run src/cli.ts list --provider server --server-map '{"opencode-tmux:1.2":"http://127.0.0.1:4096"}'
 bun run src/cli.ts list --watch
 bun run src/cli.ts list --watch --interval 1
@@ -52,13 +53,14 @@ bun run src/cli.ts switch opencode-tmux:1.2
 - interactive `switch` chooser when no target is provided
 - `switch <target>` for direct tmux navigation
 - `popup` to open a tmux-native chooser backed by the CLI switch command
-- `status` for tmux status-line text based on the current pane or overall summary
+- `status` for tmux status-line text showing the current pane plus a background summary
 - `tmux-config` to generate a ready-to-paste tmux integration snippet
 - `install-tmux` to update `.tmux.conf` with a managed opencode-tmux block
 - optional tmux-colored status output with `status --style tmux`
 - `--active`, `--busy`, `--waiting`, and `--running` filters for `list` and `switch`
 - `list --compact` for tmux-friendly tab-separated output
 - runtime provider selection: `auto`, `sqlite`, or explicit `server` endpoints via `--server-map`
+- file-based opencode plugin provider for event-driven state publication
 - `server-map-template` to generate explicit pane-to-endpoint mappings
 - `server-map-template --base-port 4096` to prefill sequential local ports
 - validated current behavior: headless `opencode serve` may return empty `{}` from `/session/status` until a session is actively attached, so `auto` falls back to sqlite
@@ -93,7 +95,10 @@ Optional TPM settings:
 
 ```tmux
 set -g @opencode-tmux-key 'O'
+set -g @opencode-tmux-waiting-key 'W'
 set -g @opencode-tmux-launcher 'menu'
+set -g @opencode-tmux-install-opencode-plugin 'on'
+set -g @opencode-tmux-provider 'plugin'
 set -g @opencode-tmux-popup-filter 'all'
 set -g @opencode-tmux-status 'on'
 set -g @opencode-tmux-status-style 'tmux'
@@ -104,7 +109,9 @@ set -g @opencode-tmux-status-interval '1'
 Available TPM options:
 
 - `@opencode-tmux-key`
+- `@opencode-tmux-waiting-key`
 - `@opencode-tmux-launcher` (`menu` or `popup`)
+- `@opencode-tmux-install-opencode-plugin` (`on` or `off`)
 - `@opencode-tmux-provider`
 - `@opencode-tmux-server-map`
 - `@opencode-tmux-popup-filter` (`all`, `busy`, `waiting`, `running`, `active`)
@@ -117,6 +124,18 @@ Available TPM options:
 - `@opencode-tmux-status-interval` (tmux `status-interval`, default `1`)
 
 After installing with TPM, press prefix + `I` and reload tmux if needed. TPM users also need `bun` installed because the plugin runs the local CLI.
+
+By default, the TPM plugin also installs the bundled opencode plugin by creating a symlink at:
+
+```text
+~/.config/opencode/plugins/opencode-tmux.ts
+```
+
+You can disable that behavior with:
+
+```tmux
+set -g @opencode-tmux-install-opencode-plugin 'off'
+```
 
 The default TPM launcher is `menu` because it is more reliable than a popup-based interactive shell on some systems. By default it shows all discovered opencode sessions with their statuses. You can opt into the popup launcher with:
 
@@ -145,6 +164,46 @@ If you are not using TPM, generate a ready-to-paste snippet instead:
 bun run src/cli.ts tmux-config
 ```
 
+## Opencode Plugin
+
+This repo now includes an opencode plugin in `plugin/opencode-tmux.ts`.
+
+The plugin writes normalized session state files to:
+
+```text
+~/.local/state/opencode-tmux/plugin-state
+```
+
+The CLI can read those files with:
+
+```bash
+bun run src/cli.ts list --provider plugin
+```
+
+If you install with TPM, the bundled opencode plugin is symlinked automatically by default.
+
+That creates:
+
+```text
+~/.config/opencode/plugins/opencode-tmux.ts
+```
+
+If you are wiring it up manually without TPM, create the symlink yourself:
+
+```bash
+ln -sfn /path/to/opencode-tmux/plugin/opencode-tmux.ts ~/.config/opencode/plugins/opencode-tmux.ts
+```
+
+Once installed, restart opencode sessions so the plugin is loaded.
+
+Recommended tmux TPM settings when using the plugin backend:
+
+```tmux
+set -g @opencode-tmux-provider 'plugin'
+set -g @opencode-tmux-status 'on'
+set -g @opencode-tmux-status-interval '1'
+```
+
 ## Tmux Status Line
 
 If you are not using TPM, example tmux `status-right` usage:
@@ -165,6 +224,8 @@ Current status output also includes simple symbols:
 - `*` busy/running
 - `-` idle/none
 - `~` unknown
+
+Inside tmux, the default status output shows both `cur` and `bg` segments so you can see the focused pane state alongside background opencode activity.
 
 To always show a global summary instead of the current pane context:
 

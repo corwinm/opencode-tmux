@@ -26,7 +26,7 @@ export interface DiscoveredPane {
   detection: PaneDetection;
 }
 
-export type RuntimeStatus = "running" | "waiting-question" | "waiting-input" | "idle" | "unknown";
+export type RuntimeStatus = "running" | "waiting-question" | "waiting-input" | "idle" | "new" | "unknown";
 export type RuntimeActivity = "busy" | "idle" | "unknown";
 
 export interface SessionMatch {
@@ -37,6 +37,8 @@ export interface SessionMatch {
 }
 
 export type RuntimeSource =
+  | "plugin-exact"
+  | "plugin-descendant"
   | "server-explicit"
   | "sqlite-exact"
   | "sqlite-descendant-running"
@@ -46,7 +48,7 @@ export type RuntimeSource =
 
 export interface RuntimeMatchInfo {
   strategy: "target-map" | "exact" | "descendant-running" | "descendant-recent" | "descendant-only" | "unmapped";
-  provider: "server" | "sqlite" | "none";
+  provider: "plugin" | "server" | "sqlite" | "none";
   heuristic: boolean;
 }
 
@@ -75,7 +77,7 @@ export interface PaneFilterOptions {
   running?: boolean;
 }
 
-export type RuntimeProviderName = "auto" | "sqlite" | "server";
+export type RuntimeProviderName = "auto" | "plugin" | "sqlite" | "server";
 
 export interface RuntimeProviderOptions {
   provider?: RuntimeProviderName;

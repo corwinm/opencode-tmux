@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -47,9 +47,25 @@ interface HeuristicSessionMatch {
   detailPrefix: string;
 }
 
+interface PluginStateFile {
+  activity?: RuntimeInfo["activity"];
+  detail?: string;
+  directory?: string;
+  sessionId?: string;
+  status?: RuntimeStatus;
+  title?: string;
+  updatedAt?: number;
+  version?: number;
+}
+
 function getOpencodeDbPath(): string {
   const dataHome = process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
   return join(dataHome, "opencode", "opencode.db");
+}
+
+function getPluginStateDir(): string {
+  const stateHome = process.env.OPENCODE_TMUX_STATE_DIR ?? process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state");
+  return process.env.OPENCODE_TMUX_STATE_DIR ? stateHome : join(stateHome, "opencode-tmux", "plugin-state");
 }
 
 function openDatabase(): Database {
@@ -162,6 +178,125 @@ function createRuntimeInfo(input: {
     session: input.session,
     detail: input.detail,
   };
+}
+
+function toPluginSessionMatch(state: PluginStateFile): SessionMatch | null {
+  if (!state.directory || !state.title) {
+    return null;
+  }
+
+  return {
+    id: state.sessionId ?? `plugin:${state.directory}`,
+    directory: state.directory,
+    title: state.title,
+    timeUpdated: state.updatedAt ?? Date.now(),
+  };
+}
+
+function readPluginStates(): PluginStateFile[] {
+  const stateDir = getPluginStateDir();
+
+  if (!existsSync(stateDir)) {
+    return [];
+  }
+
+  return readdirSync(stateDir)
+    .filter((entry) => entry.endsWith(".json"))
+    .map((entry) => join(stateDir, entry))
+    .map((filePath) => {
+      try {
+        return JSON.parse(readFileSync(filePath, "utf8")) as PluginStateFile;
+      } catch {
+        return null;
+      }
+    })
+    .filter((state): state is PluginStateFile => Boolean(state?.directory));
+}
+
+function getExactPluginState(directory: string): PluginStateFile | null {
+  const states = readPluginStates().filter((state) => state.directory === directory);
+
+  if (states.length === 0) {
+    return null;
+  }
+
+  return states.sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0] ?? null;
+}
+
+function getDescendantPluginState(directory: string): PluginStateFile | null {
+  const normalizedDirectory = directory.endsWith("/") ? directory : `${directory}/`;
+  const states = readPluginStates().filter((state) => state.directory?.startsWith(normalizedDirectory));
+
+  if (states.length === 1) {
+    return states[0] ?? null;
+  }
+
+  if (states.length === 0) {
+    return null;
+  }
+
+  const busyStates = states.filter((state) => state.activity === "busy");
+  if (busyStates.length === 1) {
+    return busyStates[0] ?? null;
+  }
+
+  return null;
+}
+
+function classifyPluginState(state: PluginStateFile | null, source: RuntimeSource, heuristic: boolean): RuntimeInfo {
+  if (!state?.directory) {
+    return createRuntimeInfo({
+      activity: "unknown",
+      status: "unknown",
+      source: "unmapped",
+      strategy: "unmapped",
+      provider: "none",
+      heuristic: false,
+      session: null,
+      detail: "no matching plugin state for pane cwd",
+    });
+  }
+
+  const status = state.status ?? "unknown";
+  const activity = state.activity ?? (status === "idle" || status === "new" ? "idle" : status === "unknown" ? "unknown" : "busy");
+
+  return createRuntimeInfo({
+    activity,
+    status,
+    source,
+    strategy: heuristic ? "descendant-only" : "exact",
+    provider: "plugin",
+    heuristic,
+    session: toPluginSessionMatch(state),
+    detail: state.detail ?? "plugin state file",
+  });
+}
+
+function attachRuntimeWithPlugin(panes: DiscoveredPane[]): PaneRuntimeSummary[] {
+  return panes.map((entry) => {
+    const exactState = getExactPluginState(entry.pane.currentPath);
+
+    if (exactState) {
+      return {
+        ...entry,
+        runtime: classifyPluginState(exactState, "plugin-exact", false),
+      };
+    }
+
+    const descendantState = getDescendantPluginState(entry.pane.currentPath);
+
+    if (descendantState) {
+      return {
+        ...entry,
+        runtime: classifyPluginState(descendantState, "plugin-descendant", true),
+      };
+    }
+
+    return {
+      ...entry,
+      runtime: classifyPluginState(null, "unmapped", false),
+    };
+  });
 }
 
 function hasUnfinishedStep(workflowState: WorkflowStateRow | null): boolean {
@@ -665,7 +800,7 @@ async function attachRuntimeWithServerMap(
 function normalizeProvider(provider: RuntimeProviderName | undefined): RuntimeProviderName {
   const value = provider ?? "auto";
 
-  if (value !== "auto" && value !== "sqlite" && value !== "server") {
+  if (value !== "auto" && value !== "plugin" && value !== "sqlite" && value !== "server") {
     throw new Error(`invalid runtime provider: ${value}`);
   }
 
@@ -678,12 +813,31 @@ export async function attachRuntimeToPanes(
 ): Promise<PaneRuntimeSummary[]> {
   const provider = normalizeProvider(options.provider);
 
+  if (provider === "plugin") {
+    return attachRuntimeWithPlugin(panes);
+  }
+
   if (provider === "sqlite") {
     return attachRuntimeWithSqlite(panes);
   }
 
   if (provider === "server") {
     return attachRuntimeWithServerMap(panes, options, false);
+  }
+
+  const pluginResults = attachRuntimeWithPlugin(panes);
+  const hasPluginMatches = pluginResults.some((entry) => entry.runtime.match.provider === "plugin");
+
+  if (hasPluginMatches) {
+    const fallbackResults = await attachRuntimeWithServerMap(panes, options, true);
+
+    return pluginResults.map((entry, index) => {
+      if (entry.runtime.match.provider === "plugin") {
+        return entry;
+      }
+
+      return fallbackResults[index] ?? entry;
+    });
   }
 
   return attachRuntimeWithServerMap(panes, options, true);
@@ -696,9 +850,14 @@ export function describeServerMapInput(value: string | undefined): string | null
 export function getRuntimeProviderHelpText(): string {
   return [
     "Runtime providers:",
-    "  auto    Use explicit server endpoints when configured, then fall back to sqlite",
+    "  auto    Use plugin state when available, then server endpoints, then sqlite",
+    "  plugin  Use opencode plugin state files only",
     "  sqlite  Use local opencode sqlite state only",
     "  server  Use explicit server endpoints only",
+    "",
+    "Plugin state:",
+    `  Default path: ${getPluginStateDir()}`,
+    "  Override with OPENCODE_TMUX_STATE_DIR.",
     "",
     "Server map:",
     "  Pass --server-map with a JSON object or a path to a JSON file.",

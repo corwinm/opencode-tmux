@@ -2,46 +2,6 @@ import type { InspectResult, PaneRuntimeSummary } from "../types";
 
 type StatusStyle = "plain" | "tmux";
 
-function getStatusIcon(current: PaneRuntimeSummary | null, panes: PaneRuntimeSummary[]): string {
-  if (current) {
-    if (current.runtime.status === "waiting-question") {
-      return "?";
-    }
-
-    if (current.runtime.status === "waiting-input") {
-      return ">";
-    }
-
-    if (current.runtime.activity === "busy") {
-      return "*";
-    }
-
-    if (current.runtime.activity === "idle") {
-      return "-";
-    }
-
-    return "~";
-  }
-
-  if (panes.length === 0) {
-    return "-";
-  }
-
-  if (panes.some((entry) => entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input")) {
-    return "!";
-  }
-
-  if (panes.some((entry) => entry.runtime.activity === "busy")) {
-    return "*";
-  }
-
-  if (panes.every((entry) => entry.runtime.activity === "idle")) {
-    return "-";
-  }
-
-  return "~";
-}
-
 const columns = ["TARGET", "ACTIVE", "ACT", "STATUS", "SRC", "CONF", "SESSION", "TITLE", "PATH", "SIGNALS"] as const;
 
 function pad(value: string, width: number): string {
@@ -205,15 +165,40 @@ export function renderSwitchChoices(panes: PaneRuntimeSummary[]): string {
     return "No likely opencode tmux panes found.";
   }
 
-  const lines = ["Select an opencode pane:", ""];
+  const rows = panes.map((entry, index) => {
+    const status =
+      entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input"
+        ? "waiting"
+        : entry.runtime.status === "running"
+          ? "busy"
+          : entry.runtime.status === "new"
+            ? "new"
+            : entry.runtime.activity;
 
-  for (const [index, entry] of panes.entries()) {
-    const sessionTitle = truncate(entry.runtime.session?.title ?? "(unmatched)", 28);
-    const title = truncate(entry.pane.paneTitle || "(untitled)", 36);
-    const path = truncate(entry.pane.currentPath, 32);
-    lines.push(
-      `${String(index + 1).padStart(2, " ")}. ${entry.pane.target}  ${entry.runtime.activity}/${entry.runtime.status}  ${sessionTitle}  ${title}  ${path}`,
-    );
+    return {
+      index: String(index + 1),
+      active: entry.pane.isActive ? "*" : "",
+      target: entry.pane.target,
+      status,
+      sessionTitle: truncate(entry.runtime.session?.title ?? "(unmatched)", 18),
+      title: truncate(entry.pane.paneTitle || "(untitled)", 36),
+      path: truncate(entry.pane.currentPath, 40),
+    };
+  });
+
+  const widths = {
+    index: Math.max(1, ...rows.map((row) => row.index.length)),
+    active: 1,
+    target: Math.max("TARGET".length, ...rows.map((row) => row.target.length)),
+    status: Math.max("STATE".length, ...rows.map((row) => row.status.length)),
+    sessionTitle: Math.max("SESSION".length, ...rows.map((row) => row.sessionTitle.length)),
+    title: Math.max("TITLE".length, ...rows.map((row) => row.title.length)),
+  };
+
+  const lines = ["Select an opencode pane:", "", [pad("#", widths.index), pad("*", widths.active), pad("TARGET", widths.target), pad("STATE", widths.status), pad("SESSION", widths.sessionTitle), pad("TITLE", widths.title), "PATH"].join("  ")];
+
+  for (const row of rows) {
+    lines.push([pad(row.index, widths.index), pad(row.active, widths.active), pad(row.target, widths.target), pad(row.status, widths.status), pad(row.sessionTitle, widths.sessionTitle), pad(row.title, widths.title), row.path].join("  "));
   }
 
   return lines.join("\n");
@@ -238,57 +223,80 @@ function formatStatusToken(label: string, tone: "neutral" | "busy" | "waiting" |
   return `#[fg=${color}]${label}#[default]`;
 }
 
-export function renderStatusSummary(
-  current: PaneRuntimeSummary | null,
-  panes: PaneRuntimeSummary[],
-  options: { style?: StatusStyle } = {},
-): string {
-  const style = options.style ?? "plain";
-  const icon = getStatusIcon(current, panes);
-
-  if (current) {
-    const activityTone =
-      current.runtime.activity === "busy" ? (current.runtime.status.startsWith("waiting") ? "waiting" : "busy") : current.runtime.activity;
-
-    return [
-      formatStatusToken("OC", "neutral", style),
-      formatStatusToken(icon, activityTone, style),
-      formatStatusToken(current.runtime.activity, activityTone, style),
-      formatStatusToken(current.runtime.status, activityTone, style),
-    ].join(" ");
+function getActivityTone(entry: PaneRuntimeSummary): "busy" | "waiting" | "idle" | "unknown" {
+  if (entry.runtime.activity === "busy") {
+    return entry.runtime.status.startsWith("waiting") ? "waiting" : "busy";
   }
 
+  return entry.runtime.activity;
+}
+
+function getCurrentLabel(entry: PaneRuntimeSummary): string {
+  if (entry.runtime.status === "new") {
+    return "new";
+  }
+
+  if (entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input") {
+    return "waiting";
+  }
+
+  if (entry.runtime.status === "running") {
+    return "busy";
+  }
+
+  return entry.runtime.activity;
+}
+
+function renderBackgroundSummary(panes: PaneRuntimeSummary[], style: StatusStyle): string[] {
   if (panes.length === 0) {
-    return [formatStatusToken("OC", "neutral", style), formatStatusToken(icon, "unknown", style), formatStatusToken("none", "unknown", style)].join(" ");
+    return [formatStatusToken("other", "neutral", style), formatStatusToken("none", "unknown", style)];
   }
 
   const busy = panes.filter((entry) => entry.runtime.activity === "busy").length;
   const waiting = panes.filter((entry) => entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input").length;
 
   if (busy === 0) {
-    return [
-      formatStatusToken("OC", "neutral", style),
-      formatStatusToken(icon, "idle", style),
-      formatStatusToken(String(panes.length), "idle", style),
-      formatStatusToken("idle", "idle", style),
-    ].join(" ");
+    return [formatStatusToken("other", "neutral", style), formatStatusToken(`${panes.length} idle`, "idle", style)];
+  }
+
+  if (busy === waiting) {
+    return [formatStatusToken("other", "neutral", style), formatStatusToken(`${waiting} waiting`, "waiting", style)];
   }
 
   if (waiting === 0) {
-    return [
-      formatStatusToken("OC", "neutral", style),
-      formatStatusToken(icon, "busy", style),
-      formatStatusToken(String(busy), "busy", style),
-      formatStatusToken("busy", "busy", style),
-    ].join(" ");
+    return [formatStatusToken("other", "neutral", style), formatStatusToken(`${busy} busy`, "busy", style)];
   }
 
-  return [
-    formatStatusToken("OC", "neutral", style),
-    formatStatusToken(icon, "waiting", style),
-    formatStatusToken(String(busy), "busy", style),
-    formatStatusToken("busy", "busy", style),
-    formatStatusToken(String(waiting), "waiting", style),
-    formatStatusToken("waiting", "waiting", style),
-  ].join(" ");
+  return [formatStatusToken("other", "neutral", style), formatStatusToken(`${busy} busy`, "busy", style), formatStatusToken(`${waiting} waiting`, "waiting", style)];
+}
+
+function renderCurrentSummary(current: PaneRuntimeSummary | null, style: StatusStyle): string[] {
+  if (!current) {
+    return [formatStatusToken("here", "neutral", style), formatStatusToken("none", "unknown", style)];
+  }
+
+  const activityTone = getActivityTone(current);
+  const label = getCurrentLabel(current);
+
+  return [formatStatusToken("here", "neutral", style), formatStatusToken(label, activityTone, style)];
+}
+
+export function renderStatusSummary(
+  current: PaneRuntimeSummary | null,
+  panes: PaneRuntimeSummary[],
+  options: { includeCurrentPlaceholder?: boolean; style?: StatusStyle } = {},
+): string {
+  const style = options.style ?? "plain";
+
+  if (current) {
+    const backgroundPanes = panes.filter((entry) => entry.pane.target !== current.pane.target);
+
+    return [formatStatusToken("OC", "neutral", style), ...renderCurrentSummary(current, style), ...renderBackgroundSummary(backgroundPanes, style)].join(" ");
+  }
+
+  if (options.includeCurrentPlaceholder) {
+    return [formatStatusToken("OC", "neutral", style), ...renderCurrentSummary(null, style), ...renderBackgroundSummary(panes, style)].join(" ");
+  }
+
+  return [formatStatusToken("OC", "neutral", style), ...renderBackgroundSummary(panes, style)].join(" ");
 }
