@@ -37,13 +37,6 @@ interface NodeSqliteDatabaseConstructor {
   };
 }
 
-interface BunSqliteDatabaseConstructor {
-  new (path: string, options?: { readonly?: boolean }): {
-    close(): void;
-    query(sql: string): SqliteStatement;
-  };
-}
-
 interface SessionRow {
   id: string;
   directory: string;
@@ -96,27 +89,6 @@ function getPluginStateDir(): string {
 }
 
 async function loadSqliteDatabaseConstructor(): Promise<SqliteDatabaseConstructor> {
-  if ("Bun" in globalThis) {
-    const loadBunModule = new Function('return import("bun:sqlite")') as () => Promise<{ Database: BunSqliteDatabaseConstructor }>;
-    const module = await loadBunModule();
-
-    return class WrappedBunDatabase implements SqliteDatabase {
-      private readonly database;
-
-      constructor(path: string, options?: { readonly?: boolean }) {
-        this.database = new module.Database(path, options);
-      }
-
-      close(): void {
-        this.database.close();
-      }
-
-      prepare(sql: string): SqliteStatement {
-        return this.database.query(sql);
-      }
-    };
-  }
-
   const loadNodeModule = new Function('return import("node:sqlite")') as () => Promise<{ DatabaseSync: NodeSqliteDatabaseConstructor }>;
   const module = await loadNodeModule();
 

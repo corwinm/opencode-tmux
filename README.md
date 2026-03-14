@@ -51,20 +51,9 @@ prefix + I
 Requirements:
 
 - Node 24+ must be installed
-- Bun is optional and only needed if you explicitly set `@opencode-tmux-runner 'bun'`
+- npm 10+ must be installed
+- TPM will install CLI dependencies automatically on first load with `npm ci --omit=dev`
 - `opencode` sessions must be restarted after first install so the bundled plugin is loaded
-
-The tmux integration defaults to Node. If you want to override the runner:
-
-```tmux
-set -g @opencode-tmux-runner 'node'
-```
-
-or:
-
-```tmux
-set -g @opencode-tmux-runner 'bun'
-```
 
 ## What TPM Sets Up
 
@@ -78,6 +67,12 @@ That plugin publishes normalized session state files under:
 
 ```text
 ~/.local/state/opencode-tmux/plugin-state
+```
+
+On first install, the tmux plugin also bootstraps the CLI runtime dependencies inside:
+
+```text
+~/.tmux/plugins/opencode-tmux/node_modules
 ```
 
 You can disable the automatic symlink step with:
@@ -161,7 +156,6 @@ Available tmux options:
 - `@opencode-tmux-key` main chooser key, default `O`
 - `@opencode-tmux-waiting-key` waiting-only key, default `W`
 - `@opencode-tmux-launcher` `menu` or `popup`, default `menu`
-- `@opencode-tmux-runner` `node` or `bun`, default `node`
 - `@opencode-tmux-install-opencode-plugin` `on` or `off`, default `on`
 - `@opencode-tmux-provider` `auto`, `plugin`, `sqlite`, or `server`
 - `@opencode-tmux-server-map` JSON object or JSON file path for explicit server endpoints
@@ -201,7 +195,8 @@ set -g @opencode-tmux-provider 'plugin'
 
 ## Troubleshooting
 
-- `prefix + O` does nothing: make sure your selected runner is installed and reload tmux
+- `prefix + O` does nothing: make sure `node` and `npm` are installed and reload tmux
+- first TPM load feels slow: the plugin may be running `npm ci --omit=dev` to bootstrap dependencies
 - new panes show stale state: restart the `opencode` session so it reloads the plugin
 - waiting detection seems wrong: use the `plugin` provider and confirm the bundled plugin symlink exists at `~/.config/opencode/plugins/opencode-tmux.ts`
 - TPM install changed but tmux still looks old: run `prefix + I` or `tmux source-file ~/.tmux.conf`

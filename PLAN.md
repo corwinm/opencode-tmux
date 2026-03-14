@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a TypeScript tool that runs on Node 24 by default and helps track and navigate `opencode` instances running inside `tmux`.
+Build a TypeScript tool that runs on Node 24 and helps track and navigate `opencode` instances running inside `tmux`.
 
 The first version should be a standalone CLI. Later versions should add tmux-native UI surfaces while reusing the same core logic.
 

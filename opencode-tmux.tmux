@@ -99,19 +99,45 @@ normalize_toggle() {
   esac
 }
 
-normalize_runner() {
-  local value="$1"
-  case "$value" in
-    node|bun|"")
-      printf '%s' "${value:-node}"
-      ;;
-    auto)
-      printf '%s' 'node'
-      ;;
-    *)
-      printf '%s' 'node'
-      ;;
-  esac
+dependencies_installed() {
+  local commander_dir="$CURRENT_DIR/node_modules/commander"
+  local commander_manifest="$commander_dir/package.json"
+
+  if [ ! -f "$commander_manifest" ]; then
+    return 1
+  fi
+
+  if [ "$CURRENT_DIR/package.json" -nt "$commander_manifest" ]; then
+    return 1
+  fi
+
+  if [ -f "$CURRENT_DIR/package-lock.json" ] && [ "$CURRENT_DIR/package-lock.json" -nt "$commander_manifest" ]; then
+    return 1
+  fi
+
+  return 0
+}
+
+install_cli_dependencies() {
+  local install_command
+
+  if [ -f "$CURRENT_DIR/package-lock.json" ] && command -v npm >/dev/null 2>&1; then
+    install_command="npm ci --omit=dev"
+  elif command -v npm >/dev/null 2>&1; then
+    install_command="npm install --omit=dev"
+  else
+    tmux display-message "opencode-tmux: npm is required to install CLI dependencies"
+    return 1
+  fi
+
+  tmux display-message "opencode-tmux: installing CLI dependencies"
+
+  if ! (cd "$CURRENT_DIR" && eval "$install_command" >/dev/null 2>&1); then
+    tmux display-message "opencode-tmux: failed to install CLI dependencies"
+    return 1
+  fi
+
+  tmux display-message "opencode-tmux: CLI dependencies ready"
 }
 
 install_opencode_plugin() {
@@ -133,7 +159,7 @@ install_opencode_plugin() {
 }
 
 main() {
-  local key waiting_key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option status_interval launcher install_plugin runner
+  local key waiting_key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option status_interval launcher install_plugin
   local status_prefix status_color_neutral status_color_busy status_color_waiting status_color_idle status_color_unknown
   local previous_status_segment previous_status_option
   key="$(get_tmux_option '@opencode-tmux-key' 'O')"
@@ -146,7 +172,6 @@ main() {
   popup_title="$(get_tmux_option '@opencode-tmux-popup-title' 'OpenCode Sessions')"
   launcher="$(normalize_launcher "$(get_tmux_option '@opencode-tmux-launcher' 'menu')")"
   install_plugin="$(normalize_toggle "$(get_tmux_option '@opencode-tmux-install-opencode-plugin' 'on')")"
-  runner="$(normalize_runner "$(get_tmux_option '@opencode-tmux-runner' 'node')")"
   status_enabled="$(get_tmux_option '@opencode-tmux-status' 'on')"
   status_style="$(get_tmux_option '@opencode-tmux-status-style' 'tmux')"
   status_position="$(get_tmux_option '@opencode-tmux-status-position' 'right')"
@@ -164,6 +189,10 @@ main() {
   if [ ! -f "$CURRENT_DIR/bin/opencode-tmux" ]; then
     tmux display-message "opencode-tmux: missing bin/opencode-tmux in plugin directory"
     exit 0
+  fi
+
+  if ! dependencies_installed; then
+    install_cli_dependencies || exit 0
   fi
 
   if [ "$install_plugin" = "on" ]; then
@@ -194,11 +223,11 @@ main() {
     exit 0
   fi
 
-  switch_command="OPENCODE_TMUX_RUNNER='$runner' '$popup_script' --provider '$provider'"
-  waiting_switch_command="OPENCODE_TMUX_RUNNER='$runner' '$popup_script' --provider '$provider' --waiting"
-  status_command="cd '$CURRENT_DIR' && OPENCODE_TMUX_RUNNER='$runner' OPENCODE_TMUX_STATUS_PREFIX='$status_prefix' OPENCODE_TMUX_STATUS_COLOR_NEUTRAL='$status_color_neutral' OPENCODE_TMUX_STATUS_COLOR_BUSY='$status_color_busy' OPENCODE_TMUX_STATUS_COLOR_WAITING='$status_color_waiting' OPENCODE_TMUX_STATUS_COLOR_IDLE='$status_color_idle' OPENCODE_TMUX_STATUS_COLOR_UNKNOWN='$status_color_unknown' '$CURRENT_DIR/bin/opencode-tmux' status --style '$status_style' --provider '$provider'"
-  bind_command="OPENCODE_TMUX_RUNNER='$runner' '$menu_script' --provider '$provider'"
-  waiting_bind_command="OPENCODE_TMUX_RUNNER='$runner' '$menu_script' --provider '$provider' --waiting"
+  switch_command="'$popup_script' --provider '$provider'"
+  waiting_switch_command="'$popup_script' --provider '$provider' --waiting"
+  status_command="cd '$CURRENT_DIR' && OPENCODE_TMUX_STATUS_PREFIX='$status_prefix' OPENCODE_TMUX_STATUS_COLOR_NEUTRAL='$status_color_neutral' OPENCODE_TMUX_STATUS_COLOR_BUSY='$status_color_busy' OPENCODE_TMUX_STATUS_COLOR_WAITING='$status_color_waiting' OPENCODE_TMUX_STATUS_COLOR_IDLE='$status_color_idle' OPENCODE_TMUX_STATUS_COLOR_UNKNOWN='$status_color_unknown' '$CURRENT_DIR/bin/opencode-tmux' status --style '$status_style' --provider '$provider'"
+  bind_command="'$menu_script' --provider '$provider'"
+  waiting_bind_command="'$menu_script' --provider '$provider' --waiting"
 
   if [ -n "$server_map" ]; then
     switch_command="$switch_command --server-map '$server_map'"
