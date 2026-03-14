@@ -337,9 +337,9 @@ async function runPopupCommand(options: PopupOptions): Promise<void> {
     "display-popup",
     "-E",
     "-w",
-    options.width ?? "90%",
+    options.width ?? "100%",
     "-h",
-    options.height ?? "80%",
+    options.height ?? "100%",
     "-T",
     options.title ?? "OpenCode Sessions",
     popupCommand,
@@ -438,7 +438,7 @@ function buildTmuxSnippet(options: TmuxConfigOptions): string {
 
   return [
     "# >>> opencode-tmux >>>",
-    `bind-key ${key} display-popup -E -w 90% -h 80% -T ${tmuxDoubleQuote("OpenCode Sessions")} ${tmuxDoubleQuote(switchCommand)}`,
+    `bind-key ${key} display-popup -E -w 100% -h 100% -T ${tmuxDoubleQuote("OpenCode Sessions")} ${tmuxDoubleQuote(switchCommand)}`,
     `set -g status-right ${tmuxDoubleQuote(`#(${statusCommand})`)}`,
     "# <<< opencode-tmux <<<",
   ].join("\n");
@@ -531,8 +531,8 @@ async function main(): Promise<void> {
     .option("--waiting", "Only include panes waiting for question or freeform input")
     .option("--busy", "Only include panes that are running or waiting for user response")
     .option("--running", "Only include panes with runtime status 'running'")
-    .option("--width <value>", "Popup width", "90%")
-    .option("--height <value>", "Popup height", "80%")
+    .option("--width <value>", "Popup width", "100%")
+    .option("--height <value>", "Popup height", "100%")
     .option("--title <value>", "Popup title", "OpenCode Sessions")
     .option("--print-command", "Print the popup's inner switch command instead of opening tmux")
     .action(runPopupCommand);

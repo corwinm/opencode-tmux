@@ -1,6 +1,24 @@
 import type { DiscoveredPane, DetectionConfidence, PaneTarget, PaneDetection, TmuxPane } from "../types.ts";
 import { runCommand } from "../runtime.ts";
 
+export interface WindowPreviewPane {
+  active: boolean;
+  height: number;
+  left: number;
+  lines: string[];
+  target: PaneTarget;
+  title: string;
+  top: number;
+  width: number;
+}
+
+export interface WindowPreviewSnapshot {
+  height: number;
+  panes: WindowPreviewPane[];
+  sessionName: string;
+  width: number;
+}
+
 const TMUX_FIELDS = [
   "#{session_name}",
   "#{window_index}",
@@ -144,6 +162,90 @@ export async function getCurrentTmuxTarget(): Promise<PaneTarget> {
   }
 
   return stdoutText.trim() as PaneTarget;
+}
+
+export async function capturePanePreview(target: PaneTarget, lineCount = 16): Promise<string[]> {
+  const startLine = `-${Math.max(1, lineCount)}`;
+  const { stdoutText, stderrText, exitCode } = await runCommand(["tmux", "capture-pane", "-p", "-J", "-t", target, "-S", startLine]);
+
+  if (exitCode !== 0) {
+    const message = stderrText.trim() || `failed to capture preview for ${target}`;
+    throw new Error(message);
+  }
+
+  return stdoutText
+    .split("\n")
+    .map((line) => line.replace(/\t/g, "    ").replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "").trimEnd())
+    .filter((line, index, lines) => line.length > 0 || index < lines.length - 1);
+}
+
+export async function captureWindowPreview(target: PaneTarget): Promise<WindowPreviewSnapshot> {
+  const windowTarget = target.replace(/\.\d+$/, "");
+  const paneFormat = [
+    "#{session_name}",
+    "#{window_index}",
+    "#{pane_index}",
+    "#{pane_active}",
+    "#{pane_left}",
+    "#{pane_top}",
+    "#{pane_width}",
+    "#{pane_height}",
+    "#{pane_title}",
+  ].join("\t");
+  const { stdoutText, stderrText, exitCode } = await runCommand(["tmux", "list-panes", "-t", windowTarget, "-F", paneFormat]);
+
+  if (exitCode !== 0) {
+    const message = stderrText.trim() || `failed to inspect window preview for ${target}`;
+    throw new Error(message);
+  }
+
+  const panes = await Promise.all(
+    stdoutText
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .filter(Boolean)
+      .map(async (line) => {
+        const [sessionName, windowIndex, paneIndex, paneActive, paneLeft, paneTop, paneWidth, paneHeight, paneTitle] = line.split("\t");
+
+        if (
+          sessionName === undefined ||
+          windowIndex === undefined ||
+          paneIndex === undefined ||
+          paneActive === undefined ||
+          paneLeft === undefined ||
+          paneTop === undefined ||
+          paneWidth === undefined ||
+          paneHeight === undefined ||
+          paneTitle === undefined
+        ) {
+          throw new Error(`Unexpected tmux pane preview output: ${line}`);
+        }
+
+        const paneTarget = `${sessionName}:${Number(windowIndex)}.${Number(paneIndex)}` as PaneTarget;
+
+        return {
+          active: paneActive === "1",
+          height: Number(paneHeight),
+          left: Number(paneLeft),
+          lines: await capturePanePreview(paneTarget, Math.max(1, Number(paneHeight))),
+          target: paneTarget,
+          title: paneTitle,
+          top: Number(paneTop),
+          width: Number(paneWidth),
+        } satisfies WindowPreviewPane;
+      }),
+  );
+
+  const sessionName = panes[0]?.target.split(":")[0] ?? windowTarget.split(":")[0] ?? "session";
+  const width = panes.reduce((maximum, pane) => Math.max(maximum, pane.left + pane.width), 0);
+  const height = panes.reduce((maximum, pane) => Math.max(maximum, pane.top + pane.height), 0);
+
+  return {
+    height,
+    panes,
+    sessionName,
+    width,
+  };
 }
 
 export async function switchToPane(pane: TmuxPane): Promise<void> {

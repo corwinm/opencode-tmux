@@ -168,8 +168,8 @@ Available tmux options:
 - `@opencode-tmux-provider` `auto`, `plugin`, `sqlite`, or `server`
 - `@opencode-tmux-server-map` JSON object or JSON file path for explicit server endpoints
 - `@opencode-tmux-popup-filter` one of `all`, `busy`, `waiting`, `running`, `active`
-- `@opencode-tmux-popup-width` popup width, default `90%`
-- `@opencode-tmux-popup-height` popup height, default `80%`
+- `@opencode-tmux-popup-width` popup width, default `100%`
+- `@opencode-tmux-popup-height` popup height, default `100%`
 - `@opencode-tmux-popup-title` popup title, default `OpenCode Sessions`
 - `@opencode-tmux-status` `on` or `off`, default `on`
 - `@opencode-tmux-status-style` `plain` or `tmux`, default `tmux`

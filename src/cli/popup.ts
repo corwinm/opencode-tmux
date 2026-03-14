@@ -1,5 +1,6 @@
 import { stdin as input, stdout as output } from "node:process";
 
+import { capturePanePreview } from "../core/tmux.ts";
 import type { PaneRuntimeSummary } from "../types.ts";
 
 interface PopupSelectorOptions {
@@ -10,10 +11,18 @@ const ansi = {
   reset: "\u001b[0m",
   bold: "\u001b[1m",
   dim: "\u001b[38;5;244m",
+  previewHeader: "\u001b[38;5;110m",
   rowBackground: "\u001b[48;5;236m",
   rowForeground: "\u001b[38;5;255m",
   rowIndicator: "\u001b[38;5;196m",
 };
+
+interface PreviewState {
+  error: string | null;
+  lines: string[];
+  loading: boolean;
+  target: string | null;
+}
 
 function truncate(value: string, maxWidth: number): string {
   if (maxWidth <= 0) {
@@ -193,25 +202,26 @@ function renderListRow(entry: PaneRuntimeSummary, rowIndex: number, selected: bo
   return `${ansi.rowBackground}${ansi.rowIndicator}> ${ansi.rowForeground}${ansi.bold}${line.slice(2)}${ansi.reset}`;
 }
 
-function renderDetailLine(label: string, value: string, width: number): string {
-  const prefix = `${label}: `;
-  return truncate(`${prefix}${value}`, width);
-}
-
-function buildDetailLines(selectedPane: PaneRuntimeSummary | null, width: number): string[] {
+function buildDetailLines(selectedPane: PaneRuntimeSummary | null, previewState: PreviewState, width: number, maxPreviewLines: number): string[] {
   if (!selectedPane) {
-    return ["Selected", truncate("No matching panes.", width)];
+    return [truncate("No matching panes.", width)];
   }
 
-  const state = `${getPopupStateLabel(selectedPane)} (${selectedPane.runtime.status})`;
+  const session = getSessionLabel(selectedPane);
+  const fallback = previewState.loading && previewState.target === selectedPane.pane.target
+    ? "Loading preview..."
+    : previewState.error && previewState.target === selectedPane.pane.target
+      ? previewState.error
+      : "Preview unavailable.";
+  const previewLines = previewState.target === selectedPane.pane.target && previewState.lines.length > 0
+    ? previewState.lines.slice(-Math.max(1, maxPreviewLines - 1))
+    : [fallback];
+  const dividerLabel = truncate(session, width);
+  const divider = `${dividerLabel}${"-".repeat(Math.max(0, width - dividerLabel.length))}`;
 
   return [
-    "Selected",
-    renderDetailLine("Target", selectedPane.pane.target, width),
-    renderDetailLine("State", state, width),
-    renderDetailLine("Session", getSessionLabel(selectedPane), width),
-    renderDetailLine("Title", selectedPane.pane.paneTitle || "(untitled)", width),
-    renderDetailLine("Path", selectedPane.pane.currentPath, width),
+    `${ansi.previewHeader}${ansi.bold}${divider}${ansi.reset}`,
+    ...previewLines.map((line) => truncate(line || " ", width)),
   ];
 }
 
@@ -230,6 +240,7 @@ function renderPopupScreen(
   selectedTarget: string | null,
   message: string,
   refreshing: boolean,
+  previewState: PreviewState,
 ): void {
   const width = Math.max(40, output.columns ?? 80);
   const height = Math.max(12, output.rows ?? 24);
@@ -247,8 +258,10 @@ function renderPopupScreen(
   if (statusLine) {
     headerLines.splice(1, 0, truncate(statusLine, width));
   }
-  const detailLines = buildDetailLines(selectedPane, width);
-  const listHeight = Math.max(4, height - headerLines.length - detailLines.length - 1);
+  const availableBodyHeight = Math.max(10, height - headerLines.length - 1);
+  const maxPreviewLines = Math.max(8, Math.floor(availableBodyHeight * 0.65));
+  const detailLines = buildDetailLines(selectedPane, previewState, width, maxPreviewLines);
+  const listHeight = Math.max(3, availableBodyHeight - detailLines.length);
   const windowStart = clamp(selectedIndex - Math.floor(listHeight / 2), 0, Math.max(0, filtered.length - listHeight));
   const visibleRows = filtered.slice(windowStart, windowStart + listHeight);
   const listLines = visibleRows.map((entry, index) => renderListRow(entry, windowStart + index + 1, entry.pane.target === selectedPane?.pane.target, width, indexWidth));
@@ -272,6 +285,9 @@ export async function promptForPopupSelection(options: PopupSelectorOptions): Pr
   let selectedTarget = panes[0]?.pane.target ?? null;
   let refreshing = false;
   let quickSelectPending = false;
+  const previewCache = new Map<string, string[]>();
+  const previewErrors = new Map<string, string>();
+  let previewLoadingTarget: string | null = null;
 
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -319,8 +335,46 @@ export async function promptForPopupSelection(options: PopupSelectorOptions): Pr
     };
 
     const render = () => {
-      syncSelection();
-      renderPopupScreen(panes, query, selectedTarget, message, refreshing);
+      const filtered = syncSelection();
+      const selectedPane = filtered[getSelectionIndex(filtered, selectedTarget)] ?? null;
+      const previewTarget = selectedPane?.pane.target ?? null;
+
+      renderPopupScreen(panes, query, selectedTarget, message, refreshing, {
+        error: previewTarget ? (previewErrors.get(previewTarget) ?? null) : null,
+        lines: previewTarget ? (previewCache.get(previewTarget) ?? []) : [],
+        loading: previewTarget !== null && previewLoadingTarget === previewTarget,
+        target: previewTarget,
+      });
+
+      if (selectedPane) {
+        void ensurePreview(selectedPane.pane.target);
+      }
+    };
+
+    const ensurePreview = async (target: string) => {
+      if (previewCache.has(target) || previewLoadingTarget === target) {
+        return;
+      }
+
+      previewLoadingTarget = target;
+      previewErrors.delete(target);
+      renderPopupScreen(panes, query, selectedTarget, message, refreshing, {
+        error: null,
+        lines: previewCache.get(target) ?? [],
+        loading: true,
+        target,
+      });
+
+      try {
+        previewCache.set(target, await capturePanePreview(target as PaneRuntimeSummary["pane"]["target"], 24));
+      } catch (error) {
+        previewErrors.set(target, error instanceof Error ? error.message : String(error));
+      } finally {
+        if (previewLoadingTarget === target) {
+          previewLoadingTarget = null;
+        }
+        render();
+      }
     };
 
     const clearQuickSelect = () => {
@@ -352,6 +406,9 @@ export async function promptForPopupSelection(options: PopupSelectorOptions): Pr
 
       try {
         panes = await options.loadPanes();
+        previewCache.clear();
+        previewErrors.clear();
+        previewLoadingTarget = null;
         if (panes.length === 0) {
           selectedTarget = null;
           message = "No matching panes right now. Press Esc to close or keep typing to retry later.";
