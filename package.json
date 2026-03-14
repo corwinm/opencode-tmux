@@ -11,7 +11,8 @@
     "bootstrap": "npm ci --omit=dev",
     "list": "./bin/opencode-tmux list",
     "dev": "./bin/opencode-tmux",
-    "check": "./bin/opencode-tmux --help"
+    "check": "./bin/opencode-tmux --help",
+    "sync-tmux": "./scripts/sync-tmux-plugin.sh"
   },
   "engines": {
     "node": ">=24.0.0",

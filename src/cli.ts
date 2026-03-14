@@ -7,6 +7,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { promptForPopupSelection } from "./cli/popup.ts";
 import { renderCompactPaneList, renderInspectResult, renderPaneTable, renderStatusSummary, renderSwitchChoices } from "./cli/render.ts";
 import { attachRuntimeToPanes, buildServerMapTemplate, getRuntimeProviderHelpText } from "./core/opencode.ts";
 import { discoverOpencodePanes, findDiscoveredPaneByTarget, getCurrentTmuxTarget, switchToPane } from "./core/tmux.ts";
@@ -37,6 +38,8 @@ interface PopupOptions extends SwitchOptions {
   title?: string;
   width?: string;
 }
+
+interface PopupUiOptions extends SwitchOptions {}
 
 interface StatusOptions extends RuntimeProviderOptions {
   json?: boolean;
@@ -279,8 +282,21 @@ async function runSwitchFilteredCommand(target: string | undefined, options: Swi
   await switchToPane(pane.pane);
 }
 
+async function runPopupUiCommand(options: PopupUiOptions): Promise<void> {
+  const pane = await promptForPopupSelection({
+    loadPanes: async () => filterPaneSummaries(await loadPaneRuntimeSummaries(options), options),
+  });
+
+  if (!pane) {
+    process.exit(0);
+  }
+
+  await switchToPane(pane.pane);
+  process.exit(0);
+}
+
 async function runPopupCommand(options: PopupOptions): Promise<void> {
-  const switchArgs: string[] = ["switch"];
+  const switchArgs: string[] = ["popup-ui"];
 
   if (options.provider) {
     switchArgs.push("--provider", options.provider);
@@ -520,6 +536,17 @@ async function main(): Promise<void> {
     .option("--title <value>", "Popup title", "OpenCode Sessions")
     .option("--print-command", "Print the popup's inner switch command instead of opening tmux")
     .action(runPopupCommand);
+
+  program
+    .command("popup-ui")
+    .description("Run the interactive popup selector in the current terminal")
+    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", "auto")
+    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option("--active", "Only include active tmux panes")
+    .option("--waiting", "Only include panes waiting for question or freeform input")
+    .option("--busy", "Only include panes that are running or waiting for user response")
+    .option("--running", "Only include panes with runtime status 'running'")
+    .action(runPopupUiCommand);
 
   program
     .command("status")

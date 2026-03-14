@@ -93,6 +93,14 @@ Default launcher behavior:
 - `menu` uses a tmux menu and is the most reliable option
 - `popup` opens a popup chooser if you prefer a larger interactive view
 
+Inside the popup you can do more than pick a row number:
+
+- type to filter the list by target, session, title, state, or path
+- use the up and down arrows or `Ctrl-J` / `Ctrl-K` to move through the matching panes
+- use `Ctrl-G` then `1` through `9` to immediately open the matching visible row
+- press `Enter` to switch to the selected pane
+- press `Esc` to close the popup or `Ctrl-R` to refresh the live pane list
+
 Set the launcher explicitly with:
 
 ```tmux
@@ -200,6 +208,22 @@ set -g @opencode-tmux-provider 'plugin'
 - new panes show stale state: restart the `opencode` session so it reloads the plugin
 - waiting detection seems wrong: use the `plugin` provider and confirm the bundled plugin symlink exists at `~/.config/opencode/plugins/opencode-tmux.ts`
 - TPM install changed but tmux still looks old: run `prefix + I` or `tmux source-file ~/.tmux.conf`
+
+## Local Development Sync
+
+If you edit this repo outside `~/.tmux/plugins/opencode-tmux`, tmux will still be using the TPM-installed copy until you sync it.
+
+Useful commands:
+
+```bash
+npm run sync-tmux
+npm run sync-tmux -- --reload
+npm run sync-tmux -- --bootstrap --reload
+```
+
+- `sync-tmux` copies this checkout into `~/.tmux/plugins/opencode-tmux`
+- `--reload` runs `tmux source-file ~/.tmux.conf` after syncing
+- `--bootstrap` reinstalls production dependencies in the synced plugin copy when `package.json` changed
 
 ## CLI
 
