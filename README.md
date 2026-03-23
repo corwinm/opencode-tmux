@@ -127,8 +127,8 @@ When enabled, the status line shows two views at once:
 Example output:
 
 ```text
-󰫼 | idle | 3 idle
-󰫼 | busy | 1 wait
+󰫼 | idle | 1/2 idle
+󰫼 | busy | 1/2 waiting
 󰫼 | new | none
 ```
 
@@ -140,19 +140,19 @@ set -g @opencode-tmux-status-prefix '󰫼'
 
 This means:
 
-- `󰫼 | idle | 3 idle` means the focused pane is idle and three background panes are idle
-- `󰫼 | busy | 1 wait` means the focused pane is busy and one background pane is waiting for input
+- `󰫼 | idle | 1/2 idle` means the focused pane is idle and one of two background panes is idle
+- `󰫼 | busy | 1/2 waiting` means the focused pane is busy and one of two background panes is waiting for input
 - `󰫼 | new | none` means the focused pane is newly started and there are no other detected `opencode` panes
 
 If your active pane is not an `opencode` pane, the status line uses the strongest detected `opencode` pane in the current tmux window. `opencode` panes in other windows are counted as background work.
 
 Background summary priority is:
 
-- `wait` first
+- `waiting` first
 - then `idle`
 - then `busy`
 
-So if any background pane is waiting on you, the status line surfaces that instead of less actionable busy work.
+The background summary shows `matching/total`, so if any background pane is waiting on you, the status line surfaces that instead of less actionable busy work.
 
 Enable or tune the status line with:
 

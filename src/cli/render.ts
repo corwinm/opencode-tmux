@@ -282,20 +282,26 @@ function renderBackgroundSummary(panes: PaneRuntimeSummary[], style: StatusStyle
     return [formatStatusToken("none", "unknown", style)];
   }
 
+  const total = panes.length;
   const busy = panes.filter((entry) => entry.runtime.activity === "busy").length;
   const waiting = panes.filter((entry) => entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input").length;
   const idle = panes.filter((entry) => entry.runtime.activity === "idle").length;
+  const unknown = total - busy - idle;
 
   if (waiting > 0) {
-    return [formatStatusToken(`${waiting} wait`, "waiting", style)];
+    return [formatStatusToken(`${waiting}/${total} waiting`, "waiting", style)];
   }
 
   if (idle > 0) {
-    return [formatStatusToken(`${idle} idle`, "idle", style)];
+    return [formatStatusToken(`${idle}/${total} idle`, "idle", style)];
   }
 
   if (busy > 0) {
-    return [formatStatusToken(`${busy} busy`, "busy", style)];
+    return [formatStatusToken(`${busy}/${total} busy`, "busy", style)];
+  }
+
+  if (unknown > 0) {
+    return [formatStatusToken(`${unknown}/${total} unknown`, "unknown", style)];
   }
 
   return [formatStatusToken("none", "unknown", style)];
