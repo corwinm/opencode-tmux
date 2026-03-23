@@ -1,5 +1,6 @@
 import { stdin as input, stdout as output } from "node:process";
 
+import { getPaneStatusLabel, getPaneStatusSymbol } from "./render.ts";
 import { capturePanePreview } from "../core/tmux.ts";
 import type { PaneRuntimeSummary } from "../types.ts";
 
@@ -49,19 +50,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 }
 
 function getPopupStateLabel(entry: PaneRuntimeSummary): string {
-  if (entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input") {
-    return "waiting";
-  }
-
-  if (entry.runtime.status === "running") {
-    return "busy";
-  }
-
-  if (entry.runtime.status === "new") {
-    return "new";
-  }
-
-  return entry.runtime.activity;
+  return getPaneStatusLabel(entry);
 }
 
 function getSessionLabel(entry: PaneRuntimeSummary): string {
@@ -133,7 +122,7 @@ function getIndexWidth(count: number): number {
 
 function buildListLayout(width: number, indexWidth: number) {
   const markerWidth = 2;
-  const stateWidth = 8;
+  const stateWidth = 1;
   let targetWidth = clamp(Math.floor(width * 0.22), 14, 26);
   let sessionWidth = clamp(Math.floor(width * 0.18), 12, 20);
   const separatorsWidth = markerWidth + indexWidth + 8;
@@ -166,7 +155,7 @@ function renderListHeader(width: number, indexWidth: number): string[] {
     "  ",
     pad("#", indexWidth),
     "  ",
-    pad("STATE", layout.stateWidth),
+    pad("S", layout.stateWidth),
     "  ",
     pad("TARGET", layout.targetWidth),
     "  ",
@@ -184,7 +173,7 @@ function renderListRow(entry: PaneRuntimeSummary, rowIndex: number, selected: bo
     selected ? "> " : "  ",
     pad(String(rowIndex), indexWidth),
     "  ",
-    pad(getPopupStateLabel(entry), layout.stateWidth),
+    pad(getPaneStatusSymbol(entry), layout.stateWidth),
     "  ",
     pad(entry.pane.target, layout.targetWidth),
     "  ",

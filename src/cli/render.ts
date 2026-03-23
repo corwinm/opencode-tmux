@@ -179,20 +179,11 @@ export function renderSwitchChoices(panes: PaneRuntimeSummary[]): string {
   }
 
   const rows = panes.map((entry, index) => {
-    const status =
-      entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input"
-        ? "waiting"
-        : entry.runtime.status === "running"
-          ? "busy"
-          : entry.runtime.status === "new"
-            ? "new"
-            : entry.runtime.activity;
-
     return {
       index: String(index + 1),
       active: entry.pane.isActive ? "*" : "",
       target: entry.pane.target,
-      status,
+      status: getPaneStatusSymbol(entry),
       sessionTitle: truncate(entry.runtime.session?.title ?? "(unmatched)", 18),
       title: truncate(entry.pane.paneTitle || "(untitled)", 36),
       path: truncate(entry.pane.currentPath, 40),
@@ -203,12 +194,12 @@ export function renderSwitchChoices(panes: PaneRuntimeSummary[]): string {
     index: Math.max(1, ...rows.map((row) => row.index.length)),
     active: 1,
     target: Math.max("TARGET".length, ...rows.map((row) => row.target.length)),
-    status: Math.max("STATE".length, ...rows.map((row) => row.status.length)),
+    status: Math.max("S".length, ...rows.map((row) => row.status.length)),
     sessionTitle: Math.max("SESSION".length, ...rows.map((row) => row.sessionTitle.length)),
     title: Math.max("TITLE".length, ...rows.map((row) => row.title.length)),
   };
 
-  const lines = ["Select an opencode pane:", "", [pad("#", widths.index), pad("*", widths.active), pad("TARGET", widths.target), pad("STATE", widths.status), pad("SESSION", widths.sessionTitle), pad("TITLE", widths.title), "PATH"].join("  ")];
+  const lines = ["Select an opencode pane:", "", [pad("#", widths.index), pad("*", widths.active), pad("TARGET", widths.target), pad("S", widths.status), pad("SESSION", widths.sessionTitle), pad("TITLE", widths.title), "PATH"].join("  ")];
 
   for (const row of rows) {
     lines.push([pad(row.index, widths.index), pad(row.active, widths.active), pad(row.target, widths.target), pad(row.status, widths.status), pad(row.sessionTitle, widths.sessionTitle), pad(row.title, widths.title), row.path].join("  "));
@@ -239,7 +230,7 @@ function getActivityTone(entry: PaneRuntimeSummary): "busy" | "waiting" | "idle"
   return entry.runtime.activity;
 }
 
-function getCurrentLabel(entry: PaneRuntimeSummary): string {
+export function getPaneStatusLabel(entry: PaneRuntimeSummary): string {
   if (entry.runtime.status === "new") {
     return "new";
   }
@@ -256,7 +247,7 @@ function getCurrentLabel(entry: PaneRuntimeSummary): string {
 }
 
 function getCurrentSymbol(entry: PaneRuntimeSummary): string {
-  return getBackgroundEntrySymbol(entry);
+  return getPaneStatusSymbol(entry);
 }
 
 function isWaitingEntry(entry: PaneRuntimeSummary): boolean {
@@ -283,7 +274,7 @@ function getBackgroundEntryTone(entry: PaneRuntimeSummary): StatusTone {
   return entry.runtime.activity === "busy" ? "busy" : entry.runtime.activity;
 }
 
-function getBackgroundEntrySymbol(entry: PaneRuntimeSummary): string {
+export function getPaneStatusSymbol(entry: PaneRuntimeSummary): string {
   if (isWaitingEntry(entry)) {
     return "";
   }
@@ -333,7 +324,7 @@ function renderBackgroundSummary(panes: PaneRuntimeSummary[], style: StatusStyle
   const separator = panes.length > 8 ? "" : " ";
   const orderedPanes = [...panes].sort((left, right) => left.pane.target.localeCompare(right.pane.target));
   const summary = orderedPanes
-    .map((entry) => formatStatusToken(getBackgroundEntrySymbol(entry), getBackgroundEntryTone(entry), style, { bold: true }))
+    .map((entry) => formatStatusToken(getPaneStatusSymbol(entry), getBackgroundEntryTone(entry), style, { bold: true }))
     .join(separator);
 
   return [summary];
@@ -345,7 +336,7 @@ function renderCurrentSummary(current: PaneRuntimeSummary | null, style: StatusS
   }
 
   const activityTone = getActivityTone(current);
-  const label = `${getCurrentSymbol(current)} ${getCurrentLabel(current)}`;
+  const label = `${getCurrentSymbol(current)} ${getPaneStatusLabel(current)}`;
 
   return [formatStatusToken(label, activityTone, style)];
 }

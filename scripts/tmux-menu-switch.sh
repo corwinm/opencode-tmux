@@ -37,27 +37,27 @@ status_symbol() {
 
   case "$status" in
     waiting-question)
-      printf '%s' '?'
+      printf '%s' ''
       ;;
     waiting-input)
-      printf '%s' '?'
+      printf '%s' ''
       ;;
     running)
-      printf '%s' '*'
+      printf '%s' ''
       ;;
     new)
-      printf '%s' '+'
+      printf '%s' ''
       ;;
     idle)
-      printf '%s' ' '
+      printf '%s' ''
       ;;
     *)
       if [ "$activity" = "busy" ]; then
-        printf '%s' '*'
+        printf '%s' ''
       elif [ "$activity" = "idle" ]; then
-        printf '%s' ' '
+        printf '%s' ''
       else
-        printf '%s' '~'
+        printf '%s' ''
       fi
       ;;
   esac
@@ -131,7 +131,7 @@ for line in "${LINES[@]}"; do
   symbol="$(status_symbol "$activity" "$status")"
   target_label="$(truncate_value "$target" "$target_width")"
   session_label="$(truncate_value "$session_title" "$session_width")"
-  label=$(printf '%2d. [%s] %-*s | %s' "$INDEX" "$symbol" "$target_width" "$target_label" "$session_label")
+  label=$(printf '%2d. %s  %-*s | %s' "$INDEX" "$symbol" "$target_width" "$target_label" "$session_label")
   key=""
   if [ "$INDEX" -le 9 ]; then
     key="$INDEX"
