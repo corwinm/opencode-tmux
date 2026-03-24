@@ -36,30 +36,30 @@ status_symbol() {
   local status="$2"
 
   case "$status" in
-    waiting-question)
-      printf '%s' ''
-      ;;
-    waiting-input)
-      printf '%s' ''
-      ;;
-    running)
+  waiting-question)
+    printf '%s' ''
+    ;;
+  waiting-input)
+    printf '%s' ''
+    ;;
+  running)
+    printf '%s' ''
+    ;;
+  new)
+    printf '%s' ''
+    ;;
+  idle)
+    printf '%s' ''
+    ;;
+  *)
+    if [ "$activity" = "busy" ]; then
       printf '%s' ''
-      ;;
-    new)
-      printf '%s' ''
-      ;;
-    idle)
+    elif [ "$activity" = "idle" ]; then
       printf '%s' ''
-      ;;
-    *)
-      if [ "$activity" = "busy" ]; then
-        printf '%s' ''
-      elif [ "$activity" = "idle" ]; then
-        printf '%s' ''
-      else
-        printf '%s' ''
-      fi
-      ;;
+    else
+      printf '%s' ''
+    fi
+    ;;
   esac
 }
 
@@ -127,7 +127,7 @@ fi
 
 INDEX=1
 for line in "${LINES[@]}"; do
-  IFS=$'\t' read -r target activity status source active session_title pane_title current_path <<<"$line"
+  IFS=$'\t' read -r target activity status _ _ session_title _ _ <<<"$line"
   symbol="$(status_symbol "$activity" "$status")"
   target_label="$(truncate_value "$target" "$target_width")"
   session_label="$(truncate_value "$session_title" "$session_width")"

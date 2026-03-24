@@ -26,8 +26,16 @@ jobs:
       - name: Check formatting
         run: npm run fmt:check
 
+      - name: Check shell formatting
+        run: npm run shell:fmt:check
+
       - name: Lint
         run: npm run lint
+
+      - name: Lint shell scripts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run shell:check
 
       - name: Test
         run: npm run test

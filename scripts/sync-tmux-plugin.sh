@@ -55,29 +55,29 @@ reload_tmux() {
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --target)
-      shift
-      if [ "$#" -eq 0 ]; then
-        printf 'opencode-tmux: --target requires a value\n' >&2
-        exit 1
-      fi
-      TARGET_DIR="$1"
-      ;;
-    --reload)
-      RELOAD=1
-      ;;
-    --bootstrap)
-      BOOTSTRAP=1
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      printf 'opencode-tmux: unknown argument: %s\n' "$1" >&2
-      usage >&2
+  --target)
+    shift
+    if [ "$#" -eq 0 ]; then
+      printf 'opencode-tmux: --target requires a value\n' >&2
       exit 1
-      ;;
+    fi
+    TARGET_DIR="$1"
+    ;;
+  --reload)
+    RELOAD=1
+    ;;
+  --bootstrap)
+    BOOTSTRAP=1
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    printf 'opencode-tmux: unknown argument: %s\n' "$1" >&2
+    usage >&2
+    exit 1
+    ;;
   esac
   shift
 done
@@ -104,5 +104,5 @@ fi
 if [ "$RELOAD" -eq 1 ]; then
   reload_tmux
 else
-  printf 'Next: run `tmux source-file %s` if you changed tmux bindings or plugin bootstrap logic.\n' "$TMUX_CONF"
+  printf "Next: run \`tmux source-file %s\` if you changed tmux bindings or plugin bootstrap logic.\n" "$TMUX_CONF"
 fi
