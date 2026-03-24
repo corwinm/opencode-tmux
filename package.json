@@ -12,6 +12,8 @@
     "prepare": "husky",
     "list": "./bin/opencode-tmux list",
     "dev": "./bin/opencode-tmux",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
     "check": "./bin/opencode-tmux --help",
     "typecheck": "tsc --project tsconfig.json",
     "sync-tmux": "./scripts/sync-tmux-plugin.sh",
@@ -26,10 +28,15 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
     "typescript": "^6.0.2"
   },
   "lint-staged": {
-    "**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc,json5,md,mdx,yml,yaml,toml,html,css,scss,less,gql,graphql,vue,hbs}": "oxfmt"
+    "**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}": [
+      "oxlint --fix --deny-warnings",
+      "oxfmt"
+    ],
+    "**/*.{json,jsonc,json5,md,mdx,yml,yaml,toml,html,css,scss,less,gql,graphql,vue,hbs}": "oxfmt"
   },
   "engines": {
     "node": ">=24.0.0",

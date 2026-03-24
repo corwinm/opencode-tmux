@@ -37,6 +37,8 @@ const TMUX_FIELDS = [
   "#{pane_tty}",
 ] as const;
 
+const ANSI_ESCAPE_PATTERN = new RegExp(String.raw`\u001B\[[0-9;?]*[ -/]*[@-~]`, "g");
+
 function formatConfidence(reasons: string[]): DetectionConfidence {
   if (reasons.some((reason) => reason.startsWith("title:"))) {
     return "high";
@@ -198,12 +200,7 @@ export async function capturePanePreview(target: PaneTarget, lineCount = 16): Pr
 
   return stdoutText
     .split("\n")
-    .map((line) =>
-      line
-        .replace(/\t/g, "    ")
-        .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
-        .trimEnd(),
-    )
+    .map((line) => line.replace(/\t/g, "    ").replace(ANSI_ESCAPE_PATTERN, "").trimEnd())
     .filter((line, index, lines) => line.length > 0 || index < lines.length - 1);
 }
 
