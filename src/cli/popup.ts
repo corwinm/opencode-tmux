@@ -70,11 +70,7 @@ function buildSearchText(entry: PaneRuntimeSummary): string {
 }
 
 function matchesQuery(entry: PaneRuntimeSummary, query: string): boolean {
-  const tokens = query
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
   if (tokens.length === 0) {
     return true;
@@ -88,7 +84,12 @@ function filterPanes(panes: PaneRuntimeSummary[], query: string): PaneRuntimeSum
   return panes.filter((entry) => matchesQuery(entry, query));
 }
 
-function formatQueryLine(query: string, width: number, filteredCount: number, totalCount: number): { line: string; cursorColumn: number } {
+function formatQueryLine(
+  query: string,
+  width: number,
+  filteredCount: number,
+  totalCount: number,
+): { line: string; cursorColumn: number } {
   const prefix = "> ";
   const countLabel = `${filteredCount}/${totalCount}`;
   const minimumGap = 2;
@@ -97,7 +98,10 @@ function formatQueryLine(query: string, width: number, filteredCount: number, to
   const maxQueryWidth = Math.max(0, width - reservedWidth);
 
   if (maxQueryWidth === 0) {
-    return { line: truncate(`${prefix}${countLabel}`, width), cursorColumn: Math.max(1, Math.min(width, prefix.length + 1)) };
+    return {
+      line: truncate(`${prefix}${countLabel}`, width),
+      cursorColumn: Math.max(1, Math.min(width, prefix.length + 1)),
+    };
   }
 
   const visibleQuery =
@@ -108,12 +112,19 @@ function formatQueryLine(query: string, width: number, filteredCount: number, to
         : `...${query.slice(query.length - maxQueryWidth + 3)}`;
 
   const queryText = `${prefix}${visibleQuery}`;
-  const anchoredCountStart = Math.min(anchorColumn, Math.max(queryText.length + minimumGap, width - countLabel.length));
+  const anchoredCountStart = Math.min(
+    anchorColumn,
+    Math.max(queryText.length + minimumGap, width - countLabel.length),
+  );
   const farRightCountStart = Math.max(queryText.length + minimumGap, width - countLabel.length);
-  const countStart = queryText.length <= anchorColumn - minimumGap ? anchoredCountStart : farRightCountStart;
+  const countStart =
+    queryText.length <= anchorColumn - minimumGap ? anchoredCountStart : farRightCountStart;
   const gapWidth = Math.max(minimumGap, countStart - queryText.length);
   const line = `${queryText}${" ".repeat(gapWidth)}${countLabel}`;
-  return { line: truncate(line, width), cursorColumn: Math.min(width, prefix.length + visibleQuery.length) + 1 };
+  return {
+    line: truncate(line, width),
+    cursorColumn: Math.min(width, prefix.length + visibleQuery.length) + 1,
+  };
 }
 
 function getIndexWidth(count: number): number {
@@ -164,10 +175,19 @@ function renderListHeader(width: number, indexWidth: number): string[] {
     pad("TITLE", layout.titleWidth),
   ].join("");
 
-  return [`${ansi.dim}${truncate(header, width)}${ansi.reset}`, `${ansi.dim}${"-".repeat(Math.min(width, header.length))}${ansi.reset}`];
+  return [
+    `${ansi.dim}${truncate(header, width)}${ansi.reset}`,
+    `${ansi.dim}${"-".repeat(Math.min(width, header.length))}${ansi.reset}`,
+  ];
 }
 
-function renderListRow(entry: PaneRuntimeSummary, rowIndex: number, selected: boolean, width: number, indexWidth: number): string {
+function renderListRow(
+  entry: PaneRuntimeSummary,
+  rowIndex: number,
+  selected: boolean,
+  width: number,
+  indexWidth: number,
+): string {
   const layout = buildListLayout(width, indexWidth);
   const row = [
     selected ? "> " : "  ",
@@ -191,20 +211,27 @@ function renderListRow(entry: PaneRuntimeSummary, rowIndex: number, selected: bo
   return `${ansi.rowBackground}${ansi.rowIndicator}> ${ansi.rowForeground}${ansi.bold}${line.slice(2)}${ansi.reset}`;
 }
 
-function buildDetailLines(selectedPane: PaneRuntimeSummary | null, previewState: PreviewState, width: number, maxPreviewLines: number): string[] {
+function buildDetailLines(
+  selectedPane: PaneRuntimeSummary | null,
+  previewState: PreviewState,
+  width: number,
+  maxPreviewLines: number,
+): string[] {
   if (!selectedPane) {
     return [truncate("No matching panes.", width)];
   }
 
   const session = getSessionLabel(selectedPane);
-  const fallback = previewState.loading && previewState.target === selectedPane.pane.target
-    ? "Loading preview..."
-    : previewState.error && previewState.target === selectedPane.pane.target
-      ? previewState.error
-      : "Preview unavailable.";
-  const previewLines = previewState.target === selectedPane.pane.target && previewState.lines.length > 0
-    ? previewState.lines.slice(-Math.max(1, maxPreviewLines - 1))
-    : [fallback];
+  const fallback =
+    previewState.loading && previewState.target === selectedPane.pane.target
+      ? "Loading preview..."
+      : previewState.error && previewState.target === selectedPane.pane.target
+        ? previewState.error
+        : "Preview unavailable.";
+  const previewLines =
+    previewState.target === selectedPane.pane.target && previewState.lines.length > 0
+      ? previewState.lines.slice(-Math.max(1, maxPreviewLines - 1))
+      : [fallback];
   const dividerLabel = truncate(session, width);
   const divider = `${dividerLabel}${"-".repeat(Math.max(0, width - dividerLabel.length))}`;
 
@@ -239,11 +266,7 @@ function renderPopupScreen(
   const selectedPane = filtered[selectedIndex] ?? null;
   const statusLine = refreshing ? "Refreshing..." : message;
   const queryLine = formatQueryLine(query, width, filtered.length, panes.length);
-  const headerLines = [
-    queryLine.line,
-    "",
-    ...renderListHeader(width, indexWidth),
-  ];
+  const headerLines = [queryLine.line, "", ...renderListHeader(width, indexWidth)];
   if (statusLine) {
     headerLines.splice(1, 0, truncate(statusLine, width));
   }
@@ -251,9 +274,21 @@ function renderPopupScreen(
   const maxPreviewLines = Math.max(8, Math.floor(availableBodyHeight * 0.65));
   const detailLines = buildDetailLines(selectedPane, previewState, width, maxPreviewLines);
   const listHeight = Math.max(3, availableBodyHeight - detailLines.length);
-  const windowStart = clamp(selectedIndex - Math.floor(listHeight / 2), 0, Math.max(0, filtered.length - listHeight));
+  const windowStart = clamp(
+    selectedIndex - Math.floor(listHeight / 2),
+    0,
+    Math.max(0, filtered.length - listHeight),
+  );
   const visibleRows = filtered.slice(windowStart, windowStart + listHeight);
-  const listLines = visibleRows.map((entry, index) => renderListRow(entry, windowStart + index + 1, entry.pane.target === selectedPane?.pane.target, width, indexWidth));
+  const listLines = visibleRows.map((entry, index) =>
+    renderListRow(
+      entry,
+      windowStart + index + 1,
+      entry.pane.target === selectedPane?.pane.target,
+      width,
+      indexWidth,
+    ),
+  );
 
   while (listLines.length < listHeight) {
     listLines.push("");
@@ -263,14 +298,19 @@ function renderPopupScreen(
   output.write(`\u001b[2J\u001b[H${frame}\u001b[1;${queryLine.cursorColumn}H`);
 }
 
-export async function promptForPopupSelection(options: PopupSelectorOptions): Promise<PaneRuntimeSummary | null> {
+export async function promptForPopupSelection(
+  options: PopupSelectorOptions,
+): Promise<PaneRuntimeSummary | null> {
   if (!input.isTTY || !output.isTTY) {
     throw new Error("Popup UI requires a TTY");
   }
 
   let panes = await options.loadPanes();
   let query = "";
-  let message = panes.length === 0 ? "No matching panes right now. Press Esc to close or Ctrl-R to refresh." : "";
+  let message =
+    panes.length === 0
+      ? "No matching panes right now. Press Esc to close or Ctrl-R to refresh."
+      : "";
   let selectedTarget = panes[0]?.pane.target ?? null;
   let refreshing = false;
   let quickSelectPending = false;
@@ -355,7 +395,10 @@ export async function promptForPopupSelection(options: PopupSelectorOptions): Pr
       });
 
       try {
-        previewCache.set(target, await capturePanePreview(target as PaneRuntimeSummary["pane"]["target"], 24));
+        previewCache.set(
+          target,
+          await capturePanePreview(target as PaneRuntimeSummary["pane"]["target"], 24),
+        );
       } catch (error) {
         previewErrors.set(target, error instanceof Error ? error.message : String(error));
       } finally {
@@ -400,7 +443,8 @@ export async function promptForPopupSelection(options: PopupSelectorOptions): Pr
         previewLoadingTarget = null;
         if (panes.length === 0) {
           selectedTarget = null;
-          message = "No matching panes right now. Press Esc to close or keep typing to retry later.";
+          message =
+            "No matching panes right now. Press Esc to close or keep typing to retry later.";
         } else if (!panes.some((entry) => entry.pane.target === selectedTarget)) {
           selectedTarget = panes[0]?.pane.target ?? null;
           message = "";
@@ -502,7 +546,10 @@ export async function promptForPopupSelection(options: PopupSelectorOptions): Pr
         const selectedPane = filtered[getSelectionIndex(filtered, selectedTarget)] ?? null;
 
         if (!selectedPane) {
-          message = panes.length === 0 ? "No panes available to switch to." : "No filtered match to switch to.";
+          message =
+            panes.length === 0
+              ? "No panes available to switch to."
+              : "No filtered match to switch to.";
           render();
           return;
         }
@@ -610,7 +657,12 @@ export async function promptForPopupSelection(options: PopupSelectorOptions): Pr
           continue;
         }
 
-        if (rest.startsWith("\u001b[A") || rest.startsWith("\u001b[B") || rest.startsWith("\u001b[H") || rest.startsWith("\u001b[F")) {
+        if (
+          rest.startsWith("\u001b[A") ||
+          rest.startsWith("\u001b[B") ||
+          rest.startsWith("\u001b[H") ||
+          rest.startsWith("\u001b[F")
+        ) {
           handleInput(rest.slice(0, 3));
           index += 3;
           continue;

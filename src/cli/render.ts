@@ -13,9 +13,22 @@ const statusToneColors: Record<StatusTone, string> = {
 };
 
 const statusPrefix = process.env.OPENCODE_TMUX_STATUS_PREFIX ?? "󰚩";
-const statusShowPrefix = !["0", "false", "no", "off"].includes((process.env.OPENCODE_TMUX_STATUS_SHOW_PREFIX ?? "on").toLowerCase());
+const statusShowPrefix = !["0", "false", "no", "off"].includes(
+  (process.env.OPENCODE_TMUX_STATUS_SHOW_PREFIX ?? "on").toLowerCase(),
+);
 
-const columns = ["TARGET", "ACTIVE", "ACT", "STATUS", "SRC", "CONF", "SESSION", "TITLE", "PATH", "SIGNALS"] as const;
+const columns = [
+  "TARGET",
+  "ACTIVE",
+  "ACT",
+  "STATUS",
+  "SRC",
+  "CONF",
+  "SESSION",
+  "TITLE",
+  "PATH",
+  "SIGNALS",
+] as const;
 
 function pad(value: string, width: number): string {
   return value.padEnd(width, " ");
@@ -199,16 +212,43 @@ export function renderSwitchChoices(panes: PaneRuntimeSummary[]): string {
     title: Math.max("TITLE".length, ...rows.map((row) => row.title.length)),
   };
 
-  const lines = ["Select an opencode pane:", "", [pad("#", widths.index), pad("*", widths.active), pad("TARGET", widths.target), pad("S", widths.status), pad("SESSION", widths.sessionTitle), pad("TITLE", widths.title), "PATH"].join("  ")];
+  const lines = [
+    "Select an opencode pane:",
+    "",
+    [
+      pad("#", widths.index),
+      pad("*", widths.active),
+      pad("TARGET", widths.target),
+      pad("S", widths.status),
+      pad("SESSION", widths.sessionTitle),
+      pad("TITLE", widths.title),
+      "PATH",
+    ].join("  "),
+  ];
 
   for (const row of rows) {
-    lines.push([pad(row.index, widths.index), pad(row.active, widths.active), pad(row.target, widths.target), pad(row.status, widths.status), pad(row.sessionTitle, widths.sessionTitle), pad(row.title, widths.title), row.path].join("  "));
+    lines.push(
+      [
+        pad(row.index, widths.index),
+        pad(row.active, widths.active),
+        pad(row.target, widths.target),
+        pad(row.status, widths.status),
+        pad(row.sessionTitle, widths.sessionTitle),
+        pad(row.title, widths.title),
+        row.path,
+      ].join("  "),
+    );
   }
 
   return lines.join("\n");
 }
 
-function formatStatusToken(label: string, tone: StatusTone, style: StatusStyle, options: { bold?: boolean } = {}): string {
+function formatStatusToken(
+  label: string,
+  tone: StatusTone,
+  style: StatusStyle,
+  options: { bold?: boolean } = {},
+): string {
   if (style === "plain") {
     return label;
   }
@@ -294,8 +334,13 @@ export function getPaneStatusSymbol(entry: PaneRuntimeSummary): string {
   return "";
 }
 
-export function renderStatusTone(current: PaneRuntimeSummary | null, panes: PaneRuntimeSummary[]): StatusTone {
-  const backgroundPanes = current ? panes.filter((entry) => entry.pane.target !== current.pane.target) : panes;
+export function renderStatusTone(
+  current: PaneRuntimeSummary | null,
+  panes: PaneRuntimeSummary[],
+): StatusTone {
+  const backgroundPanes = current
+    ? panes.filter((entry) => entry.pane.target !== current.pane.target)
+    : panes;
 
   if ((current && isWaitingEntry(current)) || backgroundPanes.some(isWaitingEntry)) {
     return "waiting";
@@ -322,9 +367,15 @@ function renderBackgroundSummary(panes: PaneRuntimeSummary[], style: StatusStyle
   }
 
   const separator = panes.length > 8 ? "" : " ";
-  const orderedPanes = [...panes].sort((left, right) => left.pane.target.localeCompare(right.pane.target));
+  const orderedPanes = [...panes].sort((left, right) =>
+    left.pane.target.localeCompare(right.pane.target),
+  );
   const summary = orderedPanes
-    .map((entry) => formatStatusToken(getPaneStatusSymbol(entry), getBackgroundEntryTone(entry), style, { bold: true }))
+    .map((entry) =>
+      formatStatusToken(getPaneStatusSymbol(entry), getBackgroundEntryTone(entry), style, {
+        bold: true,
+      }),
+    )
     .join(separator);
 
   return [summary];
@@ -350,27 +401,47 @@ export function renderStatusSummary(
 
   if (current) {
     const backgroundPanes = panes.filter((entry) => entry.pane.target !== current.pane.target);
-    const parts = [...renderCurrentSummary(current, style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(backgroundPanes, style)];
+    const parts = [
+      ...renderCurrentSummary(current, style),
+      formatStatusToken("|", "neutral", style),
+      ...renderBackgroundSummary(backgroundPanes, style),
+    ];
 
     if (statusShowPrefix) {
-      return [formatStatusToken(statusPrefix, "neutral", style), formatStatusToken("|", "neutral", style), ...parts].join(" ");
+      return [
+        formatStatusToken(statusPrefix, "neutral", style),
+        formatStatusToken("|", "neutral", style),
+        ...parts,
+      ].join(" ");
     }
 
     return parts.join(" ");
   }
 
   if (options.includeCurrentPlaceholder) {
-    const parts = [...renderCurrentSummary(null, style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(panes, style)];
+    const parts = [
+      ...renderCurrentSummary(null, style),
+      formatStatusToken("|", "neutral", style),
+      ...renderBackgroundSummary(panes, style),
+    ];
 
     if (statusShowPrefix) {
-      return [formatStatusToken(statusPrefix, "neutral", style), formatStatusToken("|", "neutral", style), ...parts].join(" ");
+      return [
+        formatStatusToken(statusPrefix, "neutral", style),
+        formatStatusToken("|", "neutral", style),
+        ...parts,
+      ].join(" ");
     }
 
     return parts.join(" ");
   }
 
   if (statusShowPrefix) {
-    return [formatStatusToken(statusPrefix, "neutral", style), formatStatusToken("|", "neutral", style), ...renderBackgroundSummary(panes, style)].join(" ");
+    return [
+      formatStatusToken(statusPrefix, "neutral", style),
+      formatStatusToken("|", "neutral", style),
+      ...renderBackgroundSummary(panes, style),
+    ].join(" ");
   }
 
   return renderBackgroundSummary(panes, style).join(" ");

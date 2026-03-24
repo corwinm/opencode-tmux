@@ -31,7 +31,10 @@ interface SqliteDatabaseConstructor {
 }
 
 interface NodeSqliteDatabaseConstructor {
-  new (path: string, options?: { readOnly?: boolean }): {
+  new (
+    path: string,
+    options?: { readOnly?: boolean },
+  ): {
     close(): void;
     prepare(sql: string): SqliteStatement;
   };
@@ -92,7 +95,10 @@ function getStateUpdatedAt(state: PluginStateFile): number {
   return state.updatedAt ?? 0;
 }
 
-function pickNewerState(current: PluginStateFile | undefined, candidate: PluginStateFile): PluginStateFile {
+function pickNewerState(
+  current: PluginStateFile | undefined,
+  candidate: PluginStateFile,
+): PluginStateFile {
   if (!current || getStateUpdatedAt(candidate) > getStateUpdatedAt(current)) {
     return candidate;
   }
@@ -106,19 +112,29 @@ function getOpencodeDbPath(): string {
 }
 
 function getPluginStateDir(): string {
-  const stateHome = process.env.OPENCODE_TMUX_STATE_DIR ?? process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state");
-  return process.env.OPENCODE_TMUX_STATE_DIR ? stateHome : join(stateHome, "opencode-tmux", "plugin-state");
+  const stateHome =
+    process.env.OPENCODE_TMUX_STATE_DIR ??
+    process.env.XDG_STATE_HOME ??
+    join(homedir(), ".local", "state");
+  return process.env.OPENCODE_TMUX_STATE_DIR
+    ? stateHome
+    : join(stateHome, "opencode-tmux", "plugin-state");
 }
 
 async function loadSqliteDatabaseConstructor(): Promise<SqliteDatabaseConstructor> {
-  const loadNodeModule = new Function('return import("node:sqlite")') as () => Promise<{ DatabaseSync: NodeSqliteDatabaseConstructor }>;
+  const loadNodeModule = new Function('return import("node:sqlite")') as () => Promise<{
+    DatabaseSync: NodeSqliteDatabaseConstructor;
+  }>;
   const module = await loadNodeModule();
 
   return class WrappedNodeDatabase implements SqliteDatabase {
     private readonly database;
 
     constructor(path: string, options?: { readonly?: boolean }) {
-      this.database = new module.DatabaseSync(path, { readOnly: options?.readonly });
+      this.database =
+        options?.readonly === undefined
+          ? new module.DatabaseSync(path)
+          : new module.DatabaseSync(path, { readOnly: options.readonly });
     }
 
     close(): void {
@@ -295,11 +311,17 @@ function buildPluginStateIndex(): PluginStateIndex {
     statesByDirectory.set(directory, directoryStates);
 
     if (state.paneId) {
-      exactPaneIdMatches.set(state.paneId, pickNewerState(exactPaneIdMatches.get(state.paneId), state));
+      exactPaneIdMatches.set(
+        state.paneId,
+        pickNewerState(exactPaneIdMatches.get(state.paneId), state),
+      );
     }
 
     if (state.target) {
-      exactTargetMatches.set(state.target, pickNewerState(exactTargetMatches.get(state.target), state));
+      exactTargetMatches.set(
+        state.target,
+        pickNewerState(exactTargetMatches.get(state.target), state),
+      );
     }
   }
 
@@ -354,7 +376,10 @@ function getExactPluginState(index: PluginStateIndex, pane: TmuxPane): PluginSta
   return null;
 }
 
-function getDescendantPluginState(index: PluginStateIndex, directory: string): PluginStateFile | null {
+function getDescendantPluginState(
+  index: PluginStateIndex,
+  directory: string,
+): PluginStateFile | null {
   if (index.descendantMatches.has(directory)) {
     return index.descendantMatches.get(directory) ?? null;
   }
@@ -377,7 +402,11 @@ function getDescendantPluginState(index: PluginStateIndex, directory: string): P
   return match;
 }
 
-function classifyPluginState(state: PluginStateFile | null, source: RuntimeSource, heuristic: boolean): RuntimeInfo {
+function classifyPluginState(
+  state: PluginStateFile | null,
+  source: RuntimeSource,
+  heuristic: boolean,
+): RuntimeInfo {
   if (!state?.directory) {
     return createRuntimeInfo({
       activity: "unknown",
@@ -392,7 +421,9 @@ function classifyPluginState(state: PluginStateFile | null, source: RuntimeSourc
   }
 
   const status = state.status ?? "unknown";
-  const activity = state.activity ?? (status === "idle" || status === "new" ? "idle" : status === "unknown" ? "unknown" : "busy");
+  const activity =
+    state.activity ??
+    (status === "idle" || status === "new" ? "idle" : status === "unknown" ? "unknown" : "busy");
 
   return createRuntimeInfo({
     activity,
@@ -406,7 +437,10 @@ function classifyPluginState(state: PluginStateFile | null, source: RuntimeSourc
   });
 }
 
-function attachRuntimeWithPlugin(panes: DiscoveredPane[], index = buildPluginStateIndex()): PaneRuntimeSummary[] {
+function attachRuntimeWithPlugin(
+  panes: DiscoveredPane[],
+  index = buildPluginStateIndex(),
+): PaneRuntimeSummary[] {
   return panes.map((entry) => {
     const exactState = getExactPluginState(index, entry.pane);
 
@@ -441,7 +475,11 @@ function hasUnfinishedStep(workflowState: WorkflowStateRow | null): boolean {
   return workflowState.last_step_start > (workflowState.last_step_finish ?? 0);
 }
 
-function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartRow | null, workflowState: WorkflowStateRow | null): RuntimeInfo {
+function classifyRuntime(
+  session: SessionMatch | null,
+  runningPart: RunningPartRow | null,
+  workflowState: WorkflowStateRow | null,
+): RuntimeInfo {
   if (!session) {
     return createRuntimeInfo({
       activity: "unknown",
@@ -493,7 +531,10 @@ function classifyRuntime(session: SessionMatch | null, runningPart: RunningPartR
       provider: "sqlite",
       heuristic: false,
       session,
-      detail: optionCount > 0 ? "running question tool with options" : "running question tool without options",
+      detail:
+        optionCount > 0
+          ? "running question tool with options"
+          : "running question tool without options",
     });
   }
 
@@ -531,16 +572,21 @@ function classifyRuntimeWithSource(
   };
 }
 
-function getHeuristicSessionMatch(database: SqliteDatabase, directory: string): HeuristicSessionMatch | null {
+function getHeuristicSessionMatch(
+  database: SqliteDatabase,
+  directory: string,
+): HeuristicSessionMatch | null {
   const descendants = getDescendantSessions(database, directory);
 
   if (descendants.length === 0) {
     return null;
   }
 
-    const runningDescendants = descendants.filter((session) => {
-      const runningPart = getRunningPart(database, session.id);
-    return runningPart?.status === "running" || hasUnfinishedStep(getWorkflowState(database, session.id));
+  const runningDescendants = descendants.filter((session) => {
+    const runningPart = getRunningPart(database, session.id);
+    return (
+      runningPart?.status === "running" || hasUnfinishedStep(getWorkflowState(database, session.id))
+    );
   });
 
   if (runningDescendants.length === 1) {
@@ -753,7 +799,8 @@ function getServerSessionMatch(payload: unknown): SessionMatch | null {
   const id = getStringCandidate(payload, [["session", "id"], ["id"]]);
   const directory = getStringCandidate(payload, [["session", "directory"], ["directory"]]);
   const title = getStringCandidate(payload, [["session", "title"], ["title"]]);
-  const updatedValue = getNestedValue(payload, ["session", "timeUpdated"]) ?? getNestedValue(payload, ["timeUpdated"]);
+  const updatedValue =
+    getNestedValue(payload, ["session", "timeUpdated"]) ?? getNestedValue(payload, ["timeUpdated"]);
   const timeUpdated = typeof updatedValue === "number" ? updatedValue : Date.now();
 
   if (!id || !directory || !title) {
@@ -765,7 +812,10 @@ function getServerSessionMatch(payload: unknown): SessionMatch | null {
 
 function classifyServerPayload(endpoint: string, payload: unknown): RuntimeInfo {
   if (
-    (payload && typeof payload === "object" && !Array.isArray(payload) && Object.keys(payload as Record<string, unknown>).length === 0) ||
+    (payload &&
+      typeof payload === "object" &&
+      !Array.isArray(payload) &&
+      Object.keys(payload as Record<string, unknown>).length === 0) ||
     (Array.isArray(payload) && payload.length === 0)
   ) {
     return createRuntimeInfo({
@@ -781,12 +831,19 @@ function classifyServerPayload(endpoint: string, payload: unknown): RuntimeInfo 
   }
 
   const session = getServerSessionMatch(payload);
-  const status = getStringCandidate(payload, [["status"], ["session", "status"], ["state", "status"]]);
+  const status = getStringCandidate(payload, [
+    ["status"],
+    ["session", "status"],
+    ["state", "status"],
+  ]);
   const tool = getStringCandidate(payload, [["tool"], ["session", "tool"], ["state", "tool"]]);
   const busy = getBooleanCandidate(payload, [["busy"], ["session", "busy"], ["state", "busy"]]);
   const optionCount = getOptionCountCandidate(payload);
 
-  if (status === "waiting-question" || (tool === "question" && optionCount !== null && optionCount > 0)) {
+  if (
+    status === "waiting-question" ||
+    (tool === "question" && optionCount !== null && optionCount > 0)
+  ) {
     return createRuntimeInfo({
       activity: "busy",
       status: "waiting-question",
@@ -858,7 +915,9 @@ async function fetchServerStatus(target: string, endpoint: string): Promise<Serv
   const response = await fetch(`${endpoint}/session/status`);
 
   if (!response.ok) {
-    throw new Error(`server provider request failed for ${target}: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `server provider request failed for ${target}: ${response.status} ${response.statusText}`,
+    );
   }
 
   const payload = (await response.json()) as unknown;
@@ -960,7 +1019,9 @@ export async function attachRuntimeToPanes(
   }
 
   const pluginResults = attachRuntimeWithPlugin(panes);
-  const unmatchedPanes = panes.filter((_, index) => pluginResults[index]?.runtime.match.provider !== "plugin");
+  const unmatchedPanes = panes.filter(
+    (_, index) => pluginResults[index]?.runtime.match.provider !== "plugin",
+  );
 
   if (unmatchedPanes.length === 0) {
     return pluginResults;

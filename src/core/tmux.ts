@@ -1,4 +1,10 @@
-import type { DiscoveredPane, DetectionConfidence, PaneTarget, PaneDetection, TmuxPane } from "../types.ts";
+import type {
+  DiscoveredPane,
+  DetectionConfidence,
+  PaneTarget,
+  PaneDetection,
+  TmuxPane,
+} from "../types.ts";
 import { runCommand } from "../runtime.ts";
 
 export interface WindowPreviewPane {
@@ -149,12 +155,20 @@ export async function discoverOpencodePanes(): Promise<DiscoveredPane[]> {
     .sort((left, right) => left.pane.target.localeCompare(right.pane.target));
 }
 
-export function findDiscoveredPaneByTarget(panes: DiscoveredPane[], target: PaneTarget): DiscoveredPane | null {
+export function findDiscoveredPaneByTarget(
+  panes: DiscoveredPane[],
+  target: PaneTarget,
+): DiscoveredPane | null {
   return panes.find((entry) => entry.pane.target === target) ?? null;
 }
 
 export async function getCurrentTmuxTarget(): Promise<PaneTarget> {
-  const { stdoutText, stderrText, exitCode } = await runCommand(["tmux", "display-message", "-p", "#{session_name}:#{window_index}.#{pane_index}"]);
+  const { stdoutText, stderrText, exitCode } = await runCommand([
+    "tmux",
+    "display-message",
+    "-p",
+    "#{session_name}:#{window_index}.#{pane_index}",
+  ]);
 
   if (exitCode !== 0) {
     const message = stderrText.trim() || "tmux display-message failed";
@@ -166,7 +180,16 @@ export async function getCurrentTmuxTarget(): Promise<PaneTarget> {
 
 export async function capturePanePreview(target: PaneTarget, lineCount = 16): Promise<string[]> {
   const startLine = `-${Math.max(1, lineCount)}`;
-  const { stdoutText, stderrText, exitCode } = await runCommand(["tmux", "capture-pane", "-p", "-J", "-t", target, "-S", startLine]);
+  const { stdoutText, stderrText, exitCode } = await runCommand([
+    "tmux",
+    "capture-pane",
+    "-p",
+    "-J",
+    "-t",
+    target,
+    "-S",
+    startLine,
+  ]);
 
   if (exitCode !== 0) {
     const message = stderrText.trim() || `failed to capture preview for ${target}`;
@@ -175,7 +198,12 @@ export async function capturePanePreview(target: PaneTarget, lineCount = 16): Pr
 
   return stdoutText
     .split("\n")
-    .map((line) => line.replace(/\t/g, "    ").replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "").trimEnd())
+    .map((line) =>
+      line
+        .replace(/\t/g, "    ")
+        .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
+        .trimEnd(),
+    )
     .filter((line, index, lines) => line.length > 0 || index < lines.length - 1);
 }
 
@@ -192,7 +220,14 @@ export async function captureWindowPreview(target: PaneTarget): Promise<WindowPr
     "#{pane_height}",
     "#{pane_title}",
   ].join("\t");
-  const { stdoutText, stderrText, exitCode } = await runCommand(["tmux", "list-panes", "-t", windowTarget, "-F", paneFormat]);
+  const { stdoutText, stderrText, exitCode } = await runCommand([
+    "tmux",
+    "list-panes",
+    "-t",
+    windowTarget,
+    "-F",
+    paneFormat,
+  ]);
 
   if (exitCode !== 0) {
     const message = stderrText.trim() || `failed to inspect window preview for ${target}`;
@@ -205,7 +240,17 @@ export async function captureWindowPreview(target: PaneTarget): Promise<WindowPr
       .map((line) => line.trimEnd())
       .filter(Boolean)
       .map(async (line) => {
-        const [sessionName, windowIndex, paneIndex, paneActive, paneLeft, paneTop, paneWidth, paneHeight, paneTitle] = line.split("\t");
+        const [
+          sessionName,
+          windowIndex,
+          paneIndex,
+          paneActive,
+          paneLeft,
+          paneTop,
+          paneWidth,
+          paneHeight,
+          paneTitle,
+        ] = line.split("\t");
 
         if (
           sessionName === undefined ||
@@ -221,7 +266,8 @@ export async function captureWindowPreview(target: PaneTarget): Promise<WindowPr
           throw new Error(`Unexpected tmux pane preview output: ${line}`);
         }
 
-        const paneTarget = `${sessionName}:${Number(windowIndex)}.${Number(paneIndex)}` as PaneTarget;
+        const paneTarget =
+          `${sessionName}:${Number(windowIndex)}.${Number(paneIndex)}` as PaneTarget;
 
         return {
           active: paneActive === "1",
@@ -252,8 +298,34 @@ export async function switchToPane(pane: TmuxPane): Promise<void> {
   const insideTmux = Boolean(process.env.TMUX);
   const windowTarget = `${pane.sessionName}:${pane.windowIndex}`;
   const command = insideTmux
-    ? ["tmux", "switch-client", "-t", pane.sessionName, ";", "select-window", "-t", windowTarget, ";", "select-pane", "-t", pane.target]
-    : ["tmux", "attach-session", "-t", pane.sessionName, ";", "select-window", "-t", windowTarget, ";", "select-pane", "-t", pane.target];
+    ? [
+        "tmux",
+        "switch-client",
+        "-t",
+        pane.sessionName,
+        ";",
+        "select-window",
+        "-t",
+        windowTarget,
+        ";",
+        "select-pane",
+        "-t",
+        pane.target,
+      ]
+    : [
+        "tmux",
+        "attach-session",
+        "-t",
+        pane.sessionName,
+        ";",
+        "select-window",
+        "-t",
+        windowTarget,
+        ";",
+        "select-pane",
+        "-t",
+        pane.target,
+      ];
 
   const { stderrText, exitCode } = await runCommand(command);
 

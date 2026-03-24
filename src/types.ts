@@ -26,7 +26,13 @@ export interface DiscoveredPane {
   detection: PaneDetection;
 }
 
-export type RuntimeStatus = "running" | "waiting-question" | "waiting-input" | "idle" | "new" | "unknown";
+export type RuntimeStatus =
+  | "running"
+  | "waiting-question"
+  | "waiting-input"
+  | "idle"
+  | "new"
+  | "unknown";
 export type RuntimeActivity = "busy" | "idle" | "unknown";
 
 export interface SessionMatch {
@@ -47,7 +53,13 @@ export type RuntimeSource =
   | "unmapped";
 
 export interface RuntimeMatchInfo {
-  strategy: "target-map" | "exact" | "descendant-running" | "descendant-recent" | "descendant-only" | "unmapped";
+  strategy:
+    | "target-map"
+    | "exact"
+    | "descendant-running"
+    | "descendant-recent"
+    | "descendant-only"
+    | "unmapped";
   provider: "plugin" | "server" | "sqlite" | "none";
   heuristic: boolean;
 }

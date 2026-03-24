@@ -1,5 +1,6 @@
 # Dependencies
 /node_modules
+/.husky/_/
 
 # Testing
 /coverage
@@ -16,4 +17,3 @@
 .env.production.local
 npm-debug.log*
 yarn-debug.log*
-

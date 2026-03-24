@@ -8,11 +8,33 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { promptForPopupSelection } from "./cli/popup.ts";
-import { renderCompactPaneList, renderInspectResult, renderPaneTable, renderStatusSummary, renderStatusTone, renderSwitchChoices } from "./cli/render.ts";
-import { attachRuntimeToPanes, buildServerMapTemplate, getRuntimeProviderHelpText } from "./core/opencode.ts";
-import { discoverOpencodePanes, findDiscoveredPaneByTarget, getCurrentTmuxTarget, switchToPane } from "./core/tmux.ts";
+import {
+  renderCompactPaneList,
+  renderInspectResult,
+  renderPaneTable,
+  renderStatusSummary,
+  renderStatusTone,
+  renderSwitchChoices,
+} from "./cli/render.ts";
+import {
+  attachRuntimeToPanes,
+  buildServerMapTemplate,
+  getRuntimeProviderHelpText,
+} from "./core/opencode.ts";
+import {
+  discoverOpencodePanes,
+  findDiscoveredPaneByTarget,
+  getCurrentTmuxTarget,
+  switchToPane,
+} from "./core/tmux.ts";
 import { runCommand, sleep } from "./runtime.ts";
-import type { InspectResult, PaneFilterOptions, PaneRuntimeSummary, PaneTarget, RuntimeProviderOptions } from "./types.ts";
+import type {
+  InspectResult,
+  PaneFilterOptions,
+  PaneRuntimeSummary,
+  PaneTarget,
+  RuntimeProviderOptions,
+} from "./types.ts";
 
 interface ListOptions extends PaneFilterOptions, RuntimeProviderOptions {
   compact?: boolean;
@@ -167,7 +189,7 @@ function shellEscape(value: string): string {
 }
 
 function tmuxDoubleQuote(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`;
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 function buildShellRunCommand(args: string[]): string {
@@ -230,7 +252,10 @@ async function watchListCommand(options: ListOptions): Promise<void> {
   }
 }
 
-function filterPaneSummaries(panes: PaneRuntimeSummary[], options: PaneFilterOptions): PaneRuntimeSummary[] {
+function filterPaneSummaries(
+  panes: PaneRuntimeSummary[],
+  options: PaneFilterOptions,
+): PaneRuntimeSummary[] {
   return panes.filter((entry) => {
     if (options.active && !entry.pane.isActive) {
       return false;
@@ -240,7 +265,10 @@ function filterPaneSummaries(panes: PaneRuntimeSummary[], options: PaneFilterOpt
       return false;
     }
 
-    if (options.busy && !["running", "waiting-question", "waiting-input"].includes(entry.runtime.status)) {
+    if (
+      options.busy &&
+      !["running", "waiting-question", "waiting-input"].includes(entry.runtime.status)
+    ) {
       return false;
     }
 
@@ -345,7 +373,10 @@ async function promptForPaneSelection(panes: PaneRuntimeSummary[]): Promise<Pane
   }
 }
 
-async function runSwitchFilteredCommand(target: string | undefined, options: SwitchOptions): Promise<void> {
+async function runSwitchFilteredCommand(
+  target: string | undefined,
+  options: SwitchOptions,
+): Promise<void> {
   const panes = filterPaneSummaries(await loadPaneRuntimeSummaries(options), options);
 
   if (panes.length === 0) {
@@ -436,7 +467,10 @@ async function runServerMapTemplateCommand(options: ServerMapTemplateOptions): P
     templateOptions.hostname = options.hostname;
   }
 
-  const template = buildServerMapTemplate(panes.map((entry) => entry.pane), templateOptions);
+  const template = buildServerMapTemplate(
+    panes.map((entry) => entry.pane),
+    templateOptions,
+  );
   console.log(JSON.stringify(template, null, 2));
 }
 
@@ -452,7 +486,10 @@ async function runStatusCommand(options: StatusOptions): Promise<void> {
 
     if (options.json) {
       const busy = panes.filter((entry) => entry.runtime.activity === "busy").length;
-      const waiting = panes.filter((entry) => entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input").length;
+      const waiting = panes.filter(
+        (entry) =>
+          entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input",
+      ).length;
       console.log(JSON.stringify({ mode: "summary", total: panes.length, busy, waiting }, null, 2));
       return;
     }
@@ -464,9 +501,15 @@ async function runStatusCommand(options: StatusOptions): Promise<void> {
   const currentTarget = await getCurrentTmuxTarget();
   const currentWindowKey = getWindowKeyFromTarget(currentTarget);
   const currentWindowPanes = panes.filter((entry) => getPaneWindowKey(entry) === currentWindowKey);
-  const current = panes.find((entry) => entry.pane.target === currentTarget) ?? pickWindowStatusRepresentative(currentWindowPanes);
-  const scopedPanes = current ? [current, ...panes.filter((entry) => getPaneWindowKey(entry) !== currentWindowKey)] : panes;
-  const currentRenderOptions = options.style ? { style: options.style, includeCurrentPlaceholder: true } : { includeCurrentPlaceholder: true };
+  const current =
+    panes.find((entry) => entry.pane.target === currentTarget) ??
+    pickWindowStatusRepresentative(currentWindowPanes);
+  const scopedPanes = current
+    ? [current, ...panes.filter((entry) => getPaneWindowKey(entry) !== currentWindowKey)]
+    : panes;
+  const currentRenderOptions = options.style
+    ? { style: options.style, includeCurrentPlaceholder: true }
+    : { includeCurrentPlaceholder: true };
 
   if (options.tone) {
     console.log(renderStatusTone(current, scopedPanes));
@@ -474,7 +517,18 @@ async function runStatusCommand(options: StatusOptions): Promise<void> {
   }
 
   if (options.json) {
-    console.log(JSON.stringify({ mode: "current", target: currentTarget, current, summary: renderStatusSummary(current, scopedPanes, currentRenderOptions) }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          mode: "current",
+          target: currentTarget,
+          current,
+          summary: renderStatusSummary(current, scopedPanes, currentRenderOptions),
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -528,7 +582,9 @@ function buildTmuxSnippet(options: TmuxConfigOptions): string {
   const menuCommand = buildMenuScriptCommand(switchArgs);
   const waitingMenuCommand = buildMenuScriptCommand(waitingArgs);
   const statusCommand = buildShellRunCommand(statusArgs);
-  const statusRefreshHookLines = STATUS_REFRESH_HOOKS.map((hook, index) => `set-hook -g ${hook}[${200 + index}] ${tmuxDoubleQuote("refresh-client -S")}`);
+  const statusRefreshHookLines = STATUS_REFRESH_HOOKS.map(
+    (hook, index) => `set-hook -g ${hook}[${200 + index}] ${tmuxDoubleQuote("refresh-client -S")}`,
+  );
   const menuKey = options.menuKey ?? "O";
   const popupKey = options.popupKey ?? "P";
   const waitingMenuKey = options.waitingMenuKey ?? "W";
@@ -561,7 +617,9 @@ async function runInstallTmuxCommand(options: InstallTmuxOptions): Promise<void>
   const existing = existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
   const startMarker = "# >>> opencode-tmux >>>";
   const endMarker = "# <<< opencode-tmux <<<";
-  const blockPattern = new RegExp(`${escapeRegExp(startMarker)}[\\s\\S]*?${escapeRegExp(endMarker)}`);
+  const blockPattern = new RegExp(
+    `${escapeRegExp(startMarker)}[\\s\\S]*?${escapeRegExp(endMarker)}`,
+  );
 
   const next = blockPattern.test(existing)
     ? existing.replace(blockPattern, snippet)
@@ -587,8 +645,15 @@ async function main(): Promise<void> {
     .description("List likely opencode tmux panes")
     .option("--compact", "Print tab-separated tmux-friendly output")
     .option("--json", "Print machine-readable JSON")
-    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", DEFAULT_RUNTIME_PROVIDER)
-    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option(
+      "--provider <provider>",
+      "Runtime provider: auto, plugin, sqlite, or server",
+      DEFAULT_RUNTIME_PROVIDER,
+    )
+    .option(
+      "--server-map <value>",
+      "JSON object or file path mapping pane targets to server endpoints",
+    )
     .option("--watch", "Continuously refresh pane status")
     .option("--interval <seconds>", "Watch refresh interval in seconds", "2")
     .option("--active", "Only include active tmux panes")
@@ -602,19 +667,36 @@ async function main(): Promise<void> {
     .description("Inspect one discovered opencode tmux pane")
     .argument("<target>", "Pane target in session:window.pane format")
     .option("--json", "Print machine-readable JSON")
-    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", DEFAULT_RUNTIME_PROVIDER)
-    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option(
+      "--provider <provider>",
+      "Runtime provider: auto, plugin, sqlite, or server",
+      DEFAULT_RUNTIME_PROVIDER,
+    )
+    .option(
+      "--server-map <value>",
+      "JSON object or file path mapping pane targets to server endpoints",
+    )
     .action(runInspectCommand);
 
   program
     .command("switch")
     .description("Switch tmux to one discovered opencode pane")
     .argument("[target]", "Pane target in session:window.pane format")
-    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", DEFAULT_RUNTIME_PROVIDER)
-    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option(
+      "--provider <provider>",
+      "Runtime provider: auto, plugin, sqlite, or server",
+      DEFAULT_RUNTIME_PROVIDER,
+    )
+    .option(
+      "--server-map <value>",
+      "JSON object or file path mapping pane targets to server endpoints",
+    )
     .option("--active", "Only allow active tmux panes as candidates")
     .option("--waiting", "Only allow panes waiting for question or freeform input as candidates")
-    .option("--busy", "Only allow panes that are running or waiting for user response as candidates")
+    .option(
+      "--busy",
+      "Only allow panes that are running or waiting for user response as candidates",
+    )
     .option("--running", "Only allow panes with runtime status 'running' as candidates")
     .action(runSwitchFilteredCommand);
 
@@ -628,8 +710,15 @@ async function main(): Promise<void> {
   program
     .command("popup")
     .description("Open a tmux popup chooser for switching between discovered opencode panes")
-    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", DEFAULT_RUNTIME_PROVIDER)
-    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option(
+      "--provider <provider>",
+      "Runtime provider: auto, plugin, sqlite, or server",
+      DEFAULT_RUNTIME_PROVIDER,
+    )
+    .option(
+      "--server-map <value>",
+      "JSON object or file path mapping pane targets to server endpoints",
+    )
     .option("--active", "Only include active tmux panes")
     .option("--waiting", "Only include panes waiting for question or freeform input")
     .option("--busy", "Only include panes that are running or waiting for user response")
@@ -643,8 +732,15 @@ async function main(): Promise<void> {
   program
     .command("popup-ui")
     .description("Run the interactive popup selector in the current terminal")
-    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", DEFAULT_RUNTIME_PROVIDER)
-    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option(
+      "--provider <provider>",
+      "Runtime provider: auto, plugin, sqlite, or server",
+      DEFAULT_RUNTIME_PROVIDER,
+    )
+    .option(
+      "--server-map <value>",
+      "JSON object or file path mapping pane targets to server endpoints",
+    )
     .option("--active", "Only include active tmux panes")
     .option("--waiting", "Only include panes waiting for question or freeform input")
     .option("--busy", "Only include panes that are running or waiting for user response")
@@ -658,32 +754,69 @@ async function main(): Promise<void> {
     .option("--summary", "Summarize all discovered opencode panes instead of the current tmux pane")
     .option("--tone", "Print only the current summary tone")
     .option("--style <style>", "Status output style: plain or tmux", "plain")
-    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", DEFAULT_RUNTIME_PROVIDER)
-    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option(
+      "--provider <provider>",
+      "Runtime provider: auto, plugin, sqlite, or server",
+      DEFAULT_RUNTIME_PROVIDER,
+    )
+    .option(
+      "--server-map <value>",
+      "JSON object or file path mapping pane targets to server endpoints",
+    )
     .action(runStatusCommand);
 
   program
     .command("tmux-config")
     .description("Print a tmux config snippet for popup and status-line integration")
-    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", DEFAULT_RUNTIME_PROVIDER)
-    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option(
+      "--provider <provider>",
+      "Runtime provider: auto, plugin, sqlite, or server",
+      DEFAULT_RUNTIME_PROVIDER,
+    )
+    .option(
+      "--server-map <value>",
+      "JSON object or file path mapping pane targets to server endpoints",
+    )
     .option("--menu-key <key>", "Tmux key binding for the menu chooser", "O")
     .option("--popup-key <key>", "Tmux key binding for the popup chooser", "P")
     .option("--waiting-menu-key <key>", "Tmux key binding for the waiting-only menu chooser", "W")
-    .option("--waiting-popup-key <key>", "Tmux key binding for the waiting-only popup chooser", "C-w")
-    .option("--popup-filter <filter>", "Popup default filter: all, busy, waiting, running, or active", "all")
+    .option(
+      "--waiting-popup-key <key>",
+      "Tmux key binding for the waiting-only popup chooser",
+      "C-w",
+    )
+    .option(
+      "--popup-filter <filter>",
+      "Popup default filter: all, busy, waiting, running, or active",
+      "all",
+    )
     .action(runTmuxConfigCommand);
 
   program
     .command("install-tmux")
     .description("Install or update an opencode-tmux snippet in a tmux config file")
-    .option("--provider <provider>", "Runtime provider: auto, plugin, sqlite, or server", DEFAULT_RUNTIME_PROVIDER)
-    .option("--server-map <value>", "JSON object or file path mapping pane targets to server endpoints")
+    .option(
+      "--provider <provider>",
+      "Runtime provider: auto, plugin, sqlite, or server",
+      DEFAULT_RUNTIME_PROVIDER,
+    )
+    .option(
+      "--server-map <value>",
+      "JSON object or file path mapping pane targets to server endpoints",
+    )
     .option("--menu-key <key>", "Tmux key binding for the menu chooser", "O")
     .option("--popup-key <key>", "Tmux key binding for the popup chooser", "P")
     .option("--waiting-menu-key <key>", "Tmux key binding for the waiting-only menu chooser", "W")
-    .option("--waiting-popup-key <key>", "Tmux key binding for the waiting-only popup chooser", "C-w")
-    .option("--popup-filter <filter>", "Popup default filter: all, busy, waiting, running, or active", "all")
+    .option(
+      "--waiting-popup-key <key>",
+      "Tmux key binding for the waiting-only popup chooser",
+      "C-w",
+    )
+    .option(
+      "--popup-filter <filter>",
+      "Popup default filter: all, busy, waiting, running, or active",
+      "all",
+    )
     .option("--file <path>", "Tmux config file to update")
     .action(runInstallTmuxCommand);
 
