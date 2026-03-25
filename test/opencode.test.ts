@@ -500,6 +500,41 @@ test("runtime provider helpers expose provider docs, template output, and valida
   );
 });
 
+test("sqlite provider reports a missing database as unknown runtime detail", async () => {
+  const dataHome = mkdtempSync(join(tmpdir(), "opencode-tmux-missing-db-"));
+  const restoreEnv = setEnv({ XDG_DATA_HOME: dataHome, OPENCODE_TMUX_STATE_DIR: undefined });
+
+  try {
+    const summaries = await attachRuntimeToPanes([createDiscoveredPane()], { provider: "sqlite" });
+
+    assert.equal(getRuntime(getSummary(summaries, 0)).status, "unknown");
+    assert.match(getRuntime(getSummary(summaries, 0)).detail, /opencode database not found/);
+  } finally {
+    restoreEnv();
+  }
+});
+
+test("server provider surfaces request failures when explicit endpoints fail", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response("boom", { status: 500, statusText: "Internal Server Error" });
+
+  try {
+    const summaries = await attachRuntimeToPanes([createDiscoveredPane({ target: "work:1.0" })], {
+      provider: "server",
+      serverMap: JSON.stringify({ "work:1.0": "http://127.0.0.1:4096" }),
+    });
+
+    assert.equal(getRuntime(getSummary(summaries, 0)).status, "unknown");
+    assert.match(
+      getRuntime(getSummary(summaries, 0)).detail,
+      /server provider request failed for work:1.0: 500 Internal Server Error/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("auto provider keeps plugin matches and falls back to sqlite when server status is unknown", async () => {
   const pluginStateDir = createPluginStateDir([
     {

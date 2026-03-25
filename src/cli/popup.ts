@@ -6,6 +6,31 @@ import type { PaneRuntimeSummary } from "../types.ts";
 
 interface PopupSelectorOptions {
   loadPanes: () => Promise<PaneRuntimeSummary[]>;
+  loadPreview?: (
+    target: PaneRuntimeSummary["pane"]["target"],
+    lineCount: number,
+  ) => Promise<string[]>;
+  inputStream?: PopupInput;
+  outputStream?: PopupOutput;
+}
+
+interface PopupInput {
+  isTTY?: boolean;
+  setEncoding(encoding: BufferEncoding): void;
+  setRawMode(mode: boolean): void;
+  resume(): void;
+  pause(): void;
+  on(event: "data", listener: (chunk: string | Buffer) => void): void;
+  removeListener(event: "data", listener: (chunk: string | Buffer) => void): void;
+}
+
+interface PopupOutput {
+  isTTY?: boolean;
+  columns?: number;
+  rows?: number;
+  write(chunk: string): void;
+  on(event: "resize", listener: () => void): void;
+  removeListener(event: "resize", listener: () => void): void;
 }
 
 const ansi = {
@@ -260,9 +285,10 @@ function renderPopupScreen(
   message: string,
   refreshing: boolean,
   previewState: PreviewState,
+  popupOutput: PopupOutput,
 ): void {
-  const width = Math.max(40, output.columns ?? 80);
-  const height = Math.max(12, output.rows ?? 24);
+  const width = Math.max(40, popupOutput.columns ?? 80);
+  const height = Math.max(12, popupOutput.rows ?? 24);
   const filtered = filterPanes(panes, query);
   const indexWidth = getIndexWidth(panes.length);
   const selectedIndex = getSelectionIndex(filtered, selectedTarget);
@@ -298,13 +324,17 @@ function renderPopupScreen(
   }
 
   const frame = [...headerLines, ...listLines, "", ...detailLines].join("\n");
-  output.write(`\u001b[2J\u001b[H${frame}\u001b[1;${queryLine.cursorColumn}H`);
+  popupOutput.write(`\u001b[2J\u001b[H${frame}\u001b[1;${queryLine.cursorColumn}H`);
 }
 
 export async function promptForPopupSelection(
   options: PopupSelectorOptions,
 ): Promise<PaneRuntimeSummary | null> {
-  if (!input.isTTY || !output.isTTY) {
+  const popupInput = options.inputStream ?? input;
+  const popupOutput = options.outputStream ?? output;
+  const loadPreview = options.loadPreview ?? capturePanePreview;
+
+  if (!popupInput.isTTY || !popupOutput.isTTY) {
     throw new Error("Popup UI requires a TTY");
   }
 
@@ -325,14 +355,14 @@ export async function promptForPopupSelection(
     let settled = false;
 
     const cleanup = () => {
-      if (input.isTTY) {
-        input.setRawMode(false);
+      if (popupInput.isTTY) {
+        popupInput.setRawMode(false);
       }
 
-      input.pause();
-      input.removeListener("data", onData);
-      output.removeListener("resize", onResize);
-      output.write("\u001b[0m\u001b[?25h");
+      popupInput.pause();
+      popupInput.removeListener("data", onData);
+      popupOutput.removeListener("resize", onResize);
+      popupOutput.write("\u001b[0m\u001b[?25h");
     };
 
     const settle = (result: PaneRuntimeSummary | null, error?: Error) => {
@@ -371,12 +401,20 @@ export async function promptForPopupSelection(
       const selectedPane = filtered[getSelectionIndex(filtered, selectedTarget)] ?? null;
       const previewTarget = selectedPane?.pane.target ?? null;
 
-      renderPopupScreen(panes, query, selectedTarget, message, refreshing, {
-        error: previewTarget ? (previewErrors.get(previewTarget) ?? null) : null,
-        lines: previewTarget ? (previewCache.get(previewTarget) ?? []) : [],
-        loading: previewTarget !== null && previewLoadingTarget === previewTarget,
-        target: previewTarget,
-      });
+      renderPopupScreen(
+        panes,
+        query,
+        selectedTarget,
+        message,
+        refreshing,
+        {
+          error: previewTarget ? (previewErrors.get(previewTarget) ?? null) : null,
+          lines: previewTarget ? (previewCache.get(previewTarget) ?? []) : [],
+          loading: previewTarget !== null && previewLoadingTarget === previewTarget,
+          target: previewTarget,
+        },
+        popupOutput,
+      );
 
       if (selectedPane) {
         void ensurePreview(selectedPane.pane.target);
@@ -390,17 +428,25 @@ export async function promptForPopupSelection(
 
       previewLoadingTarget = target;
       previewErrors.delete(target);
-      renderPopupScreen(panes, query, selectedTarget, message, refreshing, {
-        error: null,
-        lines: previewCache.get(target) ?? [],
-        loading: true,
-        target,
-      });
+      renderPopupScreen(
+        panes,
+        query,
+        selectedTarget,
+        message,
+        refreshing,
+        {
+          error: null,
+          lines: previewCache.get(target) ?? [],
+          loading: true,
+          target,
+        },
+        popupOutput,
+      );
 
       try {
         previewCache.set(
           target,
-          await capturePanePreview(target as PaneRuntimeSummary["pane"]["target"], 24),
+          await loadPreview(target as PaneRuntimeSummary["pane"]["target"], 24),
         );
       } catch (error) {
         previewErrors.set(target, error instanceof Error ? error.message : String(error));
@@ -677,12 +723,12 @@ export async function promptForPopupSelection(
     };
 
     try {
-      input.setEncoding("utf8");
-      input.setRawMode(true);
-      input.resume();
-      output.on("resize", onResize);
-      input.on("data", onData);
-      output.write("\u001b[?25h");
+      popupInput.setEncoding("utf8");
+      popupInput.setRawMode(true);
+      popupInput.resume();
+      popupOutput.on("resize", onResize);
+      popupInput.on("data", onData);
+      popupOutput.write("\u001b[?25h");
       render();
     } catch (error) {
       settle(null, error instanceof Error ? error : new Error(String(error)));

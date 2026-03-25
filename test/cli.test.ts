@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -26,6 +26,58 @@ import type {
 } from "../src/types.ts";
 
 const BIN_PATH = join(process.cwd(), "bin", "opencode-tmux");
+
+function setEnv(updates: Record<string, string | undefined>): () => void {
+  const previous = new Map<string, string | undefined>();
+
+  for (const [key, value] of Object.entries(updates)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  };
+}
+
+function createPluginStateDir(states: Record<string, unknown>[]): string {
+  const root = mkdtempSync(join(tmpdir(), "opencode-tmux-cli-state-"));
+
+  states.forEach((state, index) => {
+    writeFileSync(join(root, `state-${index + 1}.json`), JSON.stringify(state), "utf8");
+  });
+
+  return root;
+}
+
+function installFakeTmux(script: string): { pathEntry: string; logPath: string } {
+  const dir = mkdtempSync(join(tmpdir(), "opencode-tmux-cli-tmux-"));
+  const tmuxPath = join(dir, "tmux");
+  const logPath = join(dir, "tmux.log");
+  const resolvedScript = script.replaceAll("__LOG_PATH__", logPath);
+
+  writeFileSync(
+    tmuxPath,
+    `#!/usr/bin/env bash
+set -euo pipefail
+${resolvedScript}
+`,
+    "utf8",
+  );
+  chmodSync(tmuxPath, 0o755);
+
+  return { pathEntry: dir, logPath };
+}
 
 function createPane(overrides: Partial<TmuxPane> = {}): TmuxPane {
   const sessionName = overrides.sessionName ?? "work";
@@ -307,4 +359,132 @@ test("CLI install-tmux writes and replaces a marked config block", async () => {
   assert.match(contents, /# <<< opencode-tmux <<</);
   assert.match(contents, /--provider/);
   assert.equal(contents.match(/# >>> opencode-tmux >>>/g)?.length, 1);
+});
+
+test("CLI inspect emits JSON for a discovered pane", async () => {
+  const fakeTmux = installFakeTmux(`
+if [ "$1" = "list-panes" ]; then
+  printf 'work\t1\t0\t%%1\tOpenCode\topencode\t/tmp/project\t1\t/dev/ttys001\n'
+  exit 0
+fi
+printf 'unexpected args: %s\n' "$*" >&2
+exit 1
+`);
+  const pluginStateDir = createPluginStateDir([
+    {
+      target: "work:1.0",
+      directory: "/tmp/project",
+      title: "CLI Inspect Session",
+      status: "running",
+      activity: "busy",
+      updatedAt: 100,
+    },
+  ]);
+  const restoreEnv = setEnv({
+    PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}`,
+    OPENCODE_TMUX_STATE_DIR: pluginStateDir,
+  });
+
+  try {
+    const result = await runCommand([
+      BIN_PATH,
+      "inspect",
+      "work:1.0",
+      "--json",
+      "--provider",
+      "plugin",
+    ]);
+    const payload = JSON.parse(result.stdoutText);
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(payload.target, "work:1.0");
+    assert.equal(payload.summary.pane.target, "work:1.0");
+    assert.deepEqual(payload.summary.detection, {
+      isOpencode: true,
+      confidence: "high",
+      reasons: ["title:OpenCode", "command:opencode"],
+    });
+    assert.equal(payload.summary.runtime.status, "running");
+    assert.equal(payload.summary.runtime.source, "plugin-exact");
+    assert.deepEqual(payload.summary.runtime.match, {
+      strategy: "exact",
+      provider: "plugin",
+      heuristic: false,
+    });
+    assert.equal(payload.summary.runtime.session.directory, "/tmp/project");
+    assert.equal(payload.summary.runtime.session.title, "CLI Inspect Session");
+    assert.equal(payload.summary.runtime.detail, "plugin state file");
+  } finally {
+    restoreEnv();
+  }
+});
+
+test("CLI switch selects an explicit target through tmux", async () => {
+  const fakeTmux = installFakeTmux(`
+if [ "$1" = "list-panes" ]; then
+  printf 'work\t4\t2\t%%4\tOpenCode\topencode\t/tmp/project\t1\t/dev/ttys004\n'
+  exit 0
+fi
+printf '%s\n' "$*" >> '__LOG_PATH__'
+exit 0
+`);
+  const pluginStateDir = createPluginStateDir([
+    {
+      target: "work:4.2",
+      directory: "/tmp/project",
+      title: "CLI Switch Session",
+      status: "running",
+      activity: "busy",
+      updatedAt: 100,
+    },
+  ]);
+  const restoreEnv = setEnv({
+    PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}`,
+    OPENCODE_TMUX_STATE_DIR: pluginStateDir,
+    TMUX: "1",
+  });
+
+  try {
+    const result = await runCommand([BIN_PATH, "switch", "work:4.2", "--provider", "plugin"]);
+
+    assert.equal(result.exitCode, 0);
+    assert.match(
+      readFileSync(fakeTmux.logPath, "utf8"),
+      /switch-client -t work ; select-window -t work:4 ; select-pane -t work:4\.2/,
+    );
+  } finally {
+    restoreEnv();
+  }
+});
+
+test("CLI server-map-template prints sequential endpoints for discovered panes", async () => {
+  const fakeTmux = installFakeTmux(`
+if [ "$1" = "list-panes" ]; then
+  printf 'work\t1\t0\t%%1\tOpenCode\topencode\t/tmp/project-a\t1\t/dev/ttys001\n'
+  printf 'work\t1\t1\t%%2\tOpenCode\topencode\t/tmp/project-b\t0\t/dev/ttys002\n'
+  exit 0
+fi
+printf 'unexpected args: %s\n' "$*" >&2
+exit 1
+`);
+  const restoreEnv = setEnv({ PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}` });
+
+  try {
+    const result = await runCommand([
+      BIN_PATH,
+      "server-map-template",
+      "--base-port",
+      "4096",
+      "--hostname",
+      "127.0.0.2",
+    ]);
+
+    assert.equal(result.exitCode, 0);
+    assert.deepEqual(JSON.parse(result.stdoutText), {
+      "work:1.0": "http://127.0.0.2:4096",
+      "work:1.1": "http://127.0.0.2:4097",
+    });
+  } finally {
+    restoreEnv();
+  }
 });

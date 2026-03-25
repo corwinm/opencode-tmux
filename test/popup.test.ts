@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import test from "node:test";
 
 import {
@@ -8,6 +9,7 @@ import {
   formatQueryLine,
   getSelectionIndex,
   matchesQuery,
+  promptForPopupSelection,
   renderListHeader,
   renderListRow,
 } from "../src/cli/popup.ts";
@@ -80,6 +82,43 @@ function createSummary(
     },
     runtime: overrides.runtime ?? createRuntime(status),
   };
+}
+
+class FakeInput extends EventEmitter {
+  isTTY = true;
+  encoding: BufferEncoding | null = null;
+  rawMode = false;
+
+  setEncoding(encoding: BufferEncoding): void {
+    this.encoding = encoding;
+  }
+
+  setRawMode(mode: boolean): void {
+    this.rawMode = mode;
+  }
+
+  resume(): void {}
+
+  pause(): void {}
+
+  send(value: string): void {
+    this.emit("data", value);
+  }
+}
+
+class FakeOutput extends EventEmitter {
+  isTTY = true;
+  columns = 80;
+  rows = 24;
+  writes: string[] = [];
+
+  write(chunk: string): void {
+    this.writes.push(chunk);
+  }
+}
+
+async function nextTick(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 test("matchesQuery and filterPanes search across target, status, session, title, and path", () => {
@@ -222,4 +261,79 @@ test("getSelectionIndex keeps the current selection when available and falls bac
   assert.equal(getSelectionIndex(panes, "work:1.1"), 1);
   assert.equal(getSelectionIndex(panes, "work:9.9"), 0);
   assert.equal(getSelectionIndex(panes, null), 0);
+});
+
+test("promptForPopupSelection supports quick select and preview loading without a real TTY", async () => {
+  const input = new FakeInput();
+  const output = new FakeOutput();
+  const previewRequests: string[] = [];
+  const panes = [
+    createSummary("idle", { pane: createPane({ target: "work:1.0" }) }),
+    createSummary("running", { pane: createPane({ target: "work:1.1", paneIndex: 1 }) }),
+  ];
+
+  const selectionPromise = promptForPopupSelection({
+    loadPanes: async () => panes,
+    loadPreview: async (target) => {
+      previewRequests.push(target);
+      return [`preview:${target}`];
+    },
+    inputStream: input,
+    outputStream: output,
+  });
+
+  await nextTick();
+  input.send("\u0007");
+  input.send("2");
+
+  const selected = await selectionPromise;
+
+  assert.equal(selected?.pane.target, "work:1.1");
+  assert.equal(input.encoding, "utf8");
+  assert.equal(input.rawMode, false);
+  assert.deepEqual(previewRequests, ["work:1.0"]);
+  assert.equal(
+    output.writes.some((chunk) => chunk.includes("Quick select: press 1-9")),
+    true,
+  );
+});
+
+test("promptForPopupSelection refreshes panes and falls back to the next valid selection", async () => {
+  const input = new FakeInput();
+  const output = new FakeOutput();
+  const paneSets = [
+    [
+      createSummary("idle", { pane: createPane({ target: "work:1.0" }) }),
+      createSummary("running", { pane: createPane({ target: "work:1.1", paneIndex: 1 }) }),
+    ],
+    [createSummary("waiting-input", { pane: createPane({ target: "work:2.0", windowIndex: 2 }) })],
+  ];
+  let loadCount = 0;
+
+  const selectionPromise = promptForPopupSelection({
+    loadPanes: async () => paneSets[Math.min(loadCount++, paneSets.length - 1)] ?? [],
+    loadPreview: async (target) => [`preview:${target}`],
+    inputStream: input,
+    outputStream: output,
+  });
+
+  await nextTick();
+  input.send("\u001b[B");
+  input.send("\u0012");
+  await nextTick();
+  await nextTick();
+  input.send("\r");
+
+  const selected = await selectionPromise;
+
+  assert.equal(selected?.pane.target, "work:2.0");
+  assert.equal(loadCount, 2);
+  assert.equal(
+    output.writes.some((chunk) => chunk.includes("Refreshing...")),
+    true,
+  );
+  assert.equal(
+    output.writes.some((chunk) => chunk.includes("work:2.0")),
+    true,
+  );
 });

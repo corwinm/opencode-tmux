@@ -288,3 +288,19 @@ exit 1
     restoreEnv();
   }
 });
+
+test("tmux helpers surface subprocess failures with stderr context", async () => {
+  const fakeTmux = installFakeTmux(`
+printf 'tmux failed: %s\n' "$1" >&2
+exit 1
+`);
+  const restoreEnv = setEnv({ PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}` });
+
+  try {
+    await assert.rejects(listAllPanes(), /tmux failed: list-panes/);
+    await assert.rejects(getCurrentTmuxTarget(), /tmux failed: display-message/);
+    await assert.rejects(capturePanePreview("work:1.0"), /tmux failed: capture-pane/);
+  } finally {
+    restoreEnv();
+  }
+});
