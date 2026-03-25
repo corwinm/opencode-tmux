@@ -93,6 +93,10 @@ export async function listAllPanes(): Promise<TmuxPane[]> {
     throw new Error(message);
   }
 
+  return parseListAllPanesOutput(stdoutText);
+}
+
+export function parseListAllPanesOutput(stdoutText: string): TmuxPane[] {
   return stdoutText
     .split("\n")
     .map((line: string) => line.trimEnd())
@@ -100,7 +104,7 @@ export async function listAllPanes(): Promise<TmuxPane[]> {
     .map(parsePaneLine);
 }
 
-function parsePaneLine(line: string): TmuxPane {
+export function parsePaneLine(line: string): TmuxPane {
   const parts = line.split("\t");
 
   if (parts.length !== TMUX_FIELDS.length) {
@@ -145,9 +149,7 @@ function parsePaneLine(line: string): TmuxPane {
   };
 }
 
-export async function discoverOpencodePanes(): Promise<DiscoveredPane[]> {
-  const panes = await listAllPanes();
-
+export function discoverOpencodePanesFromList(panes: TmuxPane[]): DiscoveredPane[] {
   return panes
     .map((pane) => ({
       pane,
@@ -155,6 +157,10 @@ export async function discoverOpencodePanes(): Promise<DiscoveredPane[]> {
     }))
     .filter((entry) => entry.detection.isOpencode)
     .sort((left, right) => left.pane.target.localeCompare(right.pane.target));
+}
+
+export async function discoverOpencodePanes(): Promise<DiscoveredPane[]> {
+  return discoverOpencodePanesFromList(await listAllPanes());
 }
 
 export function findDiscoveredPaneByTarget(
@@ -198,6 +204,10 @@ export async function capturePanePreview(target: PaneTarget, lineCount = 16): Pr
     throw new Error(message);
   }
 
+  return normalizeCapturedPaneLines(stdoutText);
+}
+
+export function normalizeCapturedPaneLines(stdoutText: string): string[] {
   return stdoutText
     .split("\n")
     .map((line) => line.replace(/\t/g, "    ").replace(ANSI_ESCAPE_PATTERN, "").trimEnd())
@@ -291,10 +301,9 @@ export async function captureWindowPreview(target: PaneTarget): Promise<WindowPr
   };
 }
 
-export async function switchToPane(pane: TmuxPane): Promise<void> {
-  const insideTmux = Boolean(process.env.TMUX);
+export function buildSwitchToPaneCommand(pane: TmuxPane, insideTmux: boolean): string[] {
   const windowTarget = `${pane.sessionName}:${pane.windowIndex}`;
-  const command = insideTmux
+  return insideTmux
     ? [
         "tmux",
         "switch-client",
@@ -323,6 +332,10 @@ export async function switchToPane(pane: TmuxPane): Promise<void> {
         "-t",
         pane.target,
       ];
+}
+
+export async function switchToPane(pane: TmuxPane): Promise<void> {
+  const command = buildSwitchToPaneCommand(pane, Boolean(process.env.TMUX));
 
   const { stderrText, exitCode } = await runCommand(command);
 
