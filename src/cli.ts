@@ -5,7 +5,7 @@ import { createInterface } from "node:readline/promises";
 import { homedir } from "node:os";
 import { stdin as input, stdout as output } from "node:process";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { promptForPopupSelection } from "./cli/popup.ts";
 import {
@@ -90,7 +90,7 @@ function getPaneWindowKey(entry: PaneRuntimeSummary): string {
   return getWindowKey(entry.pane.sessionName, entry.pane.windowIndex);
 }
 
-function getWindowKeyFromTarget(target: string): string {
+export function getWindowKeyFromTarget(target: string): string {
   const match = target.match(/^(.*):(\d+)\.\d+$/);
 
   if (!match || match[1] === undefined || match[2] === undefined) {
@@ -116,7 +116,9 @@ function getStatusRepresentativePriority(entry: PaneRuntimeSummary): number {
   }
 }
 
-function pickWindowStatusRepresentative(entries: PaneRuntimeSummary[]): PaneRuntimeSummary | null {
+export function pickWindowStatusRepresentative(
+  entries: PaneRuntimeSummary[],
+): PaneRuntimeSummary | null {
   return entries.reduce<PaneRuntimeSummary | null>((best, entry) => {
     if (!best) {
       return entry;
@@ -156,7 +158,7 @@ async function loadPaneRuntimeSummaries(options: RuntimeProviderOptions = {}) {
   return attachRuntimeToPanes(panes, options);
 }
 
-function parseWatchInterval(value: string | undefined): number {
+export function parseWatchInterval(value: string | undefined): number {
   if (!value) {
     return 2;
   }
@@ -170,7 +172,7 @@ function parseWatchInterval(value: string | undefined): number {
   return interval;
 }
 
-function parsePort(value: string | undefined, label: string): number | undefined {
+export function parsePort(value: string | undefined, label: string): number | undefined {
   if (!value) {
     return undefined;
   }
@@ -252,7 +254,7 @@ async function watchListCommand(options: ListOptions): Promise<void> {
   }
 }
 
-function filterPaneSummaries(
+export function filterPaneSummaries(
   panes: PaneRuntimeSummary[],
   options: PaneFilterOptions,
 ): PaneRuntimeSummary[] {
@@ -474,14 +476,21 @@ async function runServerMapTemplateCommand(options: ServerMapTemplateOptions): P
   console.log(JSON.stringify(template, null, 2));
 }
 
-async function runStatusCommand(options: StatusOptions): Promise<void> {
-  const panes = await loadPaneRuntimeSummaries(options);
+interface StatusOutputContext {
+  currentTarget?: PaneTarget;
+  tmuxAvailable: boolean;
+}
+
+export function buildStatusOutput(
+  panes: PaneRuntimeSummary[],
+  options: StatusOptions,
+  context: StatusOutputContext,
+): string {
   const renderOptions = options.style ? { style: options.style } : {};
 
-  if (options.summary || !process.env.TMUX) {
+  if (options.summary || !context.tmuxAvailable) {
     if (options.tone) {
-      console.log(renderStatusTone(null, panes));
-      return;
+      return renderStatusTone(null, panes);
     }
 
     if (options.json) {
@@ -490,15 +499,18 @@ async function runStatusCommand(options: StatusOptions): Promise<void> {
         (entry) =>
           entry.runtime.status === "waiting-question" || entry.runtime.status === "waiting-input",
       ).length;
-      console.log(JSON.stringify({ mode: "summary", total: panes.length, busy, waiting }, null, 2));
-      return;
+      return JSON.stringify({ mode: "summary", total: panes.length, busy, waiting }, null, 2);
     }
 
-    console.log(renderStatusSummary(null, panes, renderOptions));
-    return;
+    return renderStatusSummary(null, panes, renderOptions);
   }
 
-  const currentTarget = await getCurrentTmuxTarget();
+  const currentTarget = context.currentTarget;
+
+  if (!currentTarget) {
+    throw new Error("Current tmux target is required when rendering current-pane status");
+  }
+
   const currentWindowKey = getWindowKeyFromTarget(currentTarget);
   const currentWindowPanes = panes.filter((entry) => getPaneWindowKey(entry) === currentWindowKey);
   const current =
@@ -512,30 +524,34 @@ async function runStatusCommand(options: StatusOptions): Promise<void> {
     : { includeCurrentPlaceholder: true };
 
   if (options.tone) {
-    console.log(renderStatusTone(current, scopedPanes));
-    return;
+    return renderStatusTone(current, scopedPanes);
   }
 
   if (options.json) {
-    console.log(
-      JSON.stringify(
-        {
-          mode: "current",
-          target: currentTarget,
-          current,
-          summary: renderStatusSummary(current, scopedPanes, currentRenderOptions),
-        },
-        null,
-        2,
-      ),
+    return JSON.stringify(
+      {
+        mode: "current",
+        target: currentTarget,
+        current,
+        summary: renderStatusSummary(current, scopedPanes, currentRenderOptions),
+      },
+      null,
+      2,
     );
-    return;
   }
 
-  console.log(renderStatusSummary(current, scopedPanes, currentRenderOptions));
+  return renderStatusSummary(current, scopedPanes, currentRenderOptions);
 }
 
-function getPopupFilterArgs(filter: TmuxConfigOptions["popupFilter"]): string[] {
+async function runStatusCommand(options: StatusOptions): Promise<void> {
+  const panes = await loadPaneRuntimeSummaries(options);
+  const tmuxAvailable = Boolean(process.env.TMUX);
+  const currentTarget =
+    options.summary || !tmuxAvailable ? undefined : await getCurrentTmuxTarget();
+  console.log(buildStatusOutput(panes, options, { currentTarget, tmuxAvailable }));
+}
+
+export function getPopupFilterArgs(filter: TmuxConfigOptions["popupFilter"]): string[] {
   switch (filter) {
     case "busy":
       return ["--busy"];
@@ -558,7 +574,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function buildTmuxSnippet(options: TmuxConfigOptions): string {
+export function buildTmuxSnippet(options: TmuxConfigOptions): string {
   const switchArgs: string[] = [];
   const waitingArgs: string[] = ["--waiting"];
   const statusArgs = ["status", "--style", "tmux"];
@@ -603,7 +619,7 @@ function buildTmuxSnippet(options: TmuxConfigOptions): string {
   ].join("\n");
 }
 
-function getTmuxConfigPath(file: string | undefined): string {
+export function getTmuxConfigPath(file: string | undefined): string {
   if (file) {
     return file;
   }
@@ -611,19 +627,23 @@ function getTmuxConfigPath(file: string | undefined): string {
   return join(homedir(), ".tmux.conf");
 }
 
-async function runInstallTmuxCommand(options: InstallTmuxOptions): Promise<void> {
-  const filePath = getTmuxConfigPath(options.file);
-  const snippet = buildTmuxSnippet(options);
-  const existing = existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
+export function updateTmuxConfig(existing: string, snippet: string): string {
   const startMarker = "# >>> opencode-tmux >>>";
   const endMarker = "# <<< opencode-tmux <<<";
   const blockPattern = new RegExp(
     `${escapeRegExp(startMarker)}[\\s\\S]*?${escapeRegExp(endMarker)}`,
   );
 
-  const next = blockPattern.test(existing)
+  return blockPattern.test(existing)
     ? existing.replace(blockPattern, snippet)
     : `${existing.trimEnd()}${existing.trimEnd() ? "\n\n" : ""}${snippet}\n`;
+}
+
+async function runInstallTmuxCommand(options: InstallTmuxOptions): Promise<void> {
+  const filePath = getTmuxConfigPath(options.file);
+  const snippet = buildTmuxSnippet(options);
+  const existing = existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
+  const next = updateTmuxConfig(existing, snippet);
 
   writeFileSync(filePath, next, "utf8");
   console.log(`Updated ${filePath}`);
@@ -823,8 +843,10 @@ async function main(): Promise<void> {
   await program.parseAsync(process.argv);
 }
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`opencode-tmux: ${message}`);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`opencode-tmux: ${message}`);
+    process.exit(1);
+  });
+}

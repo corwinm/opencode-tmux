@@ -1,0 +1,261 @@
+import assert from "node:assert/strict";
+import { homedir } from "node:os";
+import test from "node:test";
+
+import {
+  buildStatusOutput,
+  buildTmuxSnippet,
+  filterPaneSummaries,
+  getPopupFilterArgs,
+  getTmuxConfigPath,
+  getWindowKeyFromTarget,
+  parsePort,
+  parseWatchInterval,
+  pickWindowStatusRepresentative,
+  updateTmuxConfig,
+} from "../src/cli.ts";
+import type {
+  PaneRuntimeSummary,
+  RuntimeInfo,
+  RuntimeStatus,
+  SessionMatch,
+  TmuxPane,
+} from "../src/types.ts";
+
+function createPane(overrides: Partial<TmuxPane> = {}): TmuxPane {
+  const sessionName = overrides.sessionName ?? "work";
+  const windowIndex = overrides.windowIndex ?? 1;
+  const paneIndex = overrides.paneIndex ?? 0;
+
+  return {
+    sessionName,
+    windowIndex,
+    paneIndex,
+    paneId: overrides.paneId ?? `%${paneIndex + 1}`,
+    paneTitle: overrides.paneTitle ?? "OpenCode",
+    currentCommand: overrides.currentCommand ?? "opencode",
+    currentPath: overrides.currentPath ?? "/tmp/project",
+    isActive: overrides.isActive ?? false,
+    tty: overrides.tty ?? "/dev/ttys001",
+    target: overrides.target ?? `${sessionName}:${windowIndex}.${paneIndex}`,
+  };
+}
+
+function createRuntime(
+  status: RuntimeStatus,
+  overrides: Partial<RuntimeInfo> = {},
+  session: SessionMatch | null = null,
+): RuntimeInfo {
+  const activity =
+    status === "running" || status === "waiting-question" || status === "waiting-input"
+      ? "busy"
+      : status === "unknown"
+        ? "unknown"
+        : "idle";
+
+  return {
+    activity,
+    status,
+    source: "plugin-exact",
+    match: {
+      strategy: "exact",
+      provider: "plugin",
+      heuristic: false,
+    },
+    session,
+    detail: `runtime:${status}`,
+    ...overrides,
+  };
+}
+
+function createSummary(
+  status: RuntimeStatus,
+  overrides: Partial<PaneRuntimeSummary> = {},
+): PaneRuntimeSummary {
+  const pane = overrides.pane ?? createPane();
+
+  return {
+    pane,
+    detection: overrides.detection ?? {
+      isOpencode: true,
+      confidence: "high",
+      reasons: ["title:OpenCode", "command:opencode"],
+    },
+    runtime: overrides.runtime ?? createRuntime(status),
+  };
+}
+
+test("parseWatchInterval and parsePort accept valid values and reject invalid ones", () => {
+  assert.equal(parseWatchInterval(undefined), 2);
+  assert.equal(parseWatchInterval("1.5"), 1.5);
+  assert.equal(parsePort(undefined, "port"), undefined);
+  assert.equal(parsePort("0", "base port"), 0);
+  assert.equal(parsePort("65535", "base port"), 65535);
+
+  assert.throws(() => parseWatchInterval("0"), /Invalid watch interval/);
+  assert.throws(() => parseWatchInterval("oops"), /Invalid watch interval/);
+  assert.throws(() => parsePort("-1", "base port"), /Invalid base port/);
+  assert.throws(() => parsePort("65536", "base port"), /Invalid base port/);
+  assert.throws(() => parsePort("1.2", "base port"), /Invalid base port/);
+});
+
+test("filterPaneSummaries applies active, waiting, busy, and running filters together", () => {
+  const panes = [
+    createSummary("idle", { pane: createPane({ target: "work:1.0", isActive: true }) }),
+    createSummary("waiting-question", { pane: createPane({ target: "work:1.1", paneIndex: 1 }) }),
+    createSummary("waiting-input", { pane: createPane({ target: "work:1.2", paneIndex: 2 }) }),
+    createSummary("running", { pane: createPane({ target: "work:1.3", paneIndex: 3 }) }),
+  ];
+
+  assert.deepEqual(
+    filterPaneSummaries(panes, { active: true }).map((entry) => entry.pane.target),
+    ["work:1.0"],
+  );
+  assert.deepEqual(
+    filterPaneSummaries(panes, { waiting: true }).map((entry) => entry.pane.target),
+    ["work:1.1", "work:1.2"],
+  );
+  assert.deepEqual(
+    filterPaneSummaries(panes, { busy: true }).map((entry) => entry.pane.target),
+    ["work:1.1", "work:1.2", "work:1.3"],
+  );
+  assert.deepEqual(
+    filterPaneSummaries(panes, { waiting: true, busy: true }).map((entry) => entry.pane.target),
+    ["work:1.1", "work:1.2"],
+  );
+  assert.deepEqual(
+    filterPaneSummaries(panes, { running: true }).map((entry) => entry.pane.target),
+    ["work:1.3"],
+  );
+});
+
+test("getWindowKeyFromTarget parses valid targets and rejects malformed ones", () => {
+  assert.equal(getWindowKeyFromTarget("work:12.3"), "work:12");
+  assert.throws(() => getWindowKeyFromTarget("work"), /Unexpected tmux target/);
+  assert.throws(() => getWindowKeyFromTarget("work:abc.1"), /Unexpected tmux target/);
+});
+
+test("pickWindowStatusRepresentative prefers higher priority states and stable target ordering", () => {
+  const idle = createSummary("idle", { pane: createPane({ target: "work:1.2", paneIndex: 2 }) });
+  const waiting = createSummary("waiting-question", {
+    pane: createPane({ target: "work:1.5", paneIndex: 5 }),
+  });
+  const running = createSummary("running", {
+    pane: createPane({ target: "work:1.3", paneIndex: 3 }),
+  });
+  const anotherRunning = createSummary("running", {
+    pane: createPane({ target: "work:1.1", paneIndex: 1 }),
+  });
+
+  assert.equal(pickWindowStatusRepresentative([idle, running, waiting]), waiting);
+  assert.equal(pickWindowStatusRepresentative([idle, running, anotherRunning]), anotherRunning);
+  assert.equal(pickWindowStatusRepresentative([]), null);
+});
+
+test("getPopupFilterArgs maps popup presets to command flags", () => {
+  assert.deepEqual(getPopupFilterArgs("all"), []);
+  assert.deepEqual(getPopupFilterArgs("busy"), ["--busy"]);
+  assert.deepEqual(getPopupFilterArgs("waiting"), ["--waiting"]);
+  assert.deepEqual(getPopupFilterArgs("running"), ["--running"]);
+  assert.deepEqual(getPopupFilterArgs("active"), ["--active"]);
+});
+
+test("buildTmuxSnippet includes provider, server map, popup filter, and refresh hooks", () => {
+  const snippet = buildTmuxSnippet({
+    provider: "server",
+    serverMap: "/tmp/server-map.json",
+    popupFilter: "waiting",
+    menuKey: "M",
+    popupKey: "P",
+    waitingMenuKey: "W",
+    waitingPopupKey: "C-w",
+  });
+
+  assert.match(snippet, /bind-key M run-shell/);
+  assert.match(snippet, /'--provider' 'server'/);
+  assert.match(snippet, /'--server-map' '\/tmp\/server-map\.json'/);
+  assert.match(snippet, /--waiting/);
+  assert.match(snippet, /set-hook -g client-attached\[200\]/);
+  assert.match(snippet, /set -g status-right/);
+});
+
+test("getTmuxConfigPath and updateTmuxConfig choose defaults, append, and replace marked blocks", () => {
+  assert.equal(getTmuxConfigPath("/tmp/custom.conf"), "/tmp/custom.conf");
+  assert.equal(getTmuxConfigPath(undefined), `${homedir()}/.tmux.conf`);
+
+  const snippet = ["# >>> opencode-tmux >>>", "new config", "# <<< opencode-tmux <<<"].join("\n");
+  const appended = updateTmuxConfig("set -g mouse on\n", snippet);
+  const replaced = updateTmuxConfig(
+    [
+      "set -g mouse on",
+      "",
+      "# >>> opencode-tmux >>>",
+      "old config",
+      "# <<< opencode-tmux <<<",
+      "",
+    ].join("\n"),
+    snippet,
+  );
+
+  assert.match(appended, /set -g mouse on\n\n# >>> opencode-tmux >>>/);
+  assert.doesNotMatch(replaced, /old config/);
+  assert.match(replaced, /new config/);
+});
+
+test("buildStatusOutput renders summary, tone, and summary json outside tmux", () => {
+  const panes = [
+    createSummary("idle", { pane: createPane({ target: "work:1.0" }) }),
+    createSummary("waiting-input", { pane: createPane({ target: "work:1.1", paneIndex: 1 }) }),
+    createSummary("running", { pane: createPane({ target: "work:1.2", paneIndex: 2 }) }),
+  ];
+
+  assert.equal(buildStatusOutput(panes, { summary: true }, { tmuxAvailable: false }), "󰚩 |   ");
+  assert.equal(
+    buildStatusOutput(panes, { summary: true, tone: true }, { tmuxAvailable: false }),
+    "waiting",
+  );
+  assert.deepEqual(
+    JSON.parse(buildStatusOutput(panes, { summary: true, json: true }, { tmuxAvailable: false })),
+    { mode: "summary", total: 3, busy: 2, waiting: 1 },
+  );
+});
+
+test("buildStatusOutput renders current pane status inside tmux and falls back to a window representative", () => {
+  const current = createSummary("running", {
+    pane: createPane({ target: "work:1.2", paneIndex: 2 }),
+  });
+  const sameWindowWaiting = createSummary("waiting-question", {
+    pane: createPane({ target: "work:1.1", paneIndex: 1 }),
+  });
+  const otherWindowIdle = createSummary("idle", {
+    pane: createPane({ target: "work:2.0", windowIndex: 2 }),
+  });
+  const panes = [sameWindowWaiting, current, otherWindowIdle];
+
+  assert.equal(
+    buildStatusOutput(panes, {}, { tmuxAvailable: true, currentTarget: "work:1.2" }),
+    "󰚩 |  busy | ",
+  );
+  assert.equal(
+    buildStatusOutput(panes, { tone: true }, { tmuxAvailable: true, currentTarget: "work:1.9" }),
+    "waiting",
+  );
+
+  const jsonOutput = JSON.parse(
+    buildStatusOutput(panes, { json: true }, { tmuxAvailable: true, currentTarget: "work:1.9" }),
+  );
+  assert.equal(jsonOutput.mode, "current");
+  assert.equal(jsonOutput.current.pane.target, "work:1.1");
+  assert.match(jsonOutput.summary, /waiting/);
+});
+
+test("buildStatusOutput uses a current placeholder when the active tmux pane has no opencode match", () => {
+  const panes = [
+    createSummary("idle", { pane: createPane({ target: "work:2.0", windowIndex: 2 }) }),
+  ];
+
+  assert.equal(
+    buildStatusOutput(panes, {}, { tmuxAvailable: true, currentTarget: "work:1.9" }),
+    "󰚩 | none | ",
+  );
+});
