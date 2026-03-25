@@ -69,7 +69,7 @@ function buildSearchText(entry: PaneRuntimeSummary): string {
     .toLowerCase();
 }
 
-function matchesQuery(entry: PaneRuntimeSummary, query: string): boolean {
+export function matchesQuery(entry: PaneRuntimeSummary, query: string): boolean {
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
   if (tokens.length === 0) {
@@ -80,11 +80,11 @@ function matchesQuery(entry: PaneRuntimeSummary, query: string): boolean {
   return tokens.every((token) => haystack.includes(token));
 }
 
-function filterPanes(panes: PaneRuntimeSummary[], query: string): PaneRuntimeSummary[] {
+export function filterPanes(panes: PaneRuntimeSummary[], query: string): PaneRuntimeSummary[] {
   return panes.filter((entry) => matchesQuery(entry, query));
 }
 
-function formatQueryLine(
+export function formatQueryLine(
   query: string,
   width: number,
   filteredCount: number,
@@ -131,7 +131,7 @@ function getIndexWidth(count: number): number {
   return Math.max(1, String(Math.max(1, count)).length);
 }
 
-function buildListLayout(width: number, indexWidth: number) {
+export function buildListLayout(width: number, indexWidth: number) {
   const markerWidth = 2;
   const stateWidth = 1;
   let targetWidth = clamp(Math.floor(width * 0.22), 14, 26);
@@ -160,7 +160,7 @@ function buildListLayout(width: number, indexWidth: number) {
   };
 }
 
-function renderListHeader(width: number, indexWidth: number): string[] {
+export function renderListHeader(width: number, indexWidth: number): string[] {
   const layout = buildListLayout(width, indexWidth);
   const header = [
     "  ",
@@ -181,7 +181,7 @@ function renderListHeader(width: number, indexWidth: number): string[] {
   ];
 }
 
-function renderListRow(
+export function renderListRow(
   entry: PaneRuntimeSummary,
   rowIndex: number,
   selected: boolean,
@@ -211,7 +211,7 @@ function renderListRow(
   return `${ansi.rowBackground}${ansi.rowIndicator}> ${ansi.rowForeground}${ansi.bold}${line.slice(2)}${ansi.reset}`;
 }
 
-function buildDetailLines(
+export function buildDetailLines(
   selectedPane: PaneRuntimeSummary | null,
   previewState: PreviewState,
   width: number,
@@ -241,7 +241,10 @@ function buildDetailLines(
   ];
 }
 
-function getSelectionIndex(panes: PaneRuntimeSummary[], selectedTarget: string | null): number {
+export function getSelectionIndex(
+  panes: PaneRuntimeSummary[],
+  selectedTarget: string | null,
+): number {
   if (!selectedTarget) {
     return 0;
   }
