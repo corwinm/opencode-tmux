@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { homedir } from "node:os";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -14,6 +16,7 @@ import {
   pickWindowStatusRepresentative,
   updateTmuxConfig,
 } from "../src/cli.ts";
+import { runCommand } from "../src/runtime.ts";
 import type {
   PaneRuntimeSummary,
   RuntimeInfo,
@@ -21,6 +24,8 @@ import type {
   SessionMatch,
   TmuxPane,
 } from "../src/types.ts";
+
+const BIN_PATH = join(process.cwd(), "bin", "opencode-tmux");
 
 function createPane(overrides: Partial<TmuxPane> = {}): TmuxPane {
   const sessionName = overrides.sessionName ?? "work";
@@ -258,4 +263,48 @@ test("buildStatusOutput uses a current placeholder when the active tmux pane has
     buildStatusOutput(panes, {}, { tmuxAvailable: true, currentTarget: "work:1.9" }),
     "󰚩 | none | ",
   );
+});
+
+test("CLI help and tmux-config work through the entrypoint script", async () => {
+  const helpResult = await runCommand([BIN_PATH, "--help"]);
+  const configResult = await runCommand([
+    BIN_PATH,
+    "tmux-config",
+    "--provider",
+    "server",
+    "--server-map",
+    "/tmp/server-map.json",
+    "--popup-filter",
+    "waiting",
+  ]);
+
+  assert.equal(helpResult.exitCode, 0);
+  assert.match(helpResult.stdoutText, /Usage: opencode-tmux/);
+  assert.match(helpResult.stdoutText, /tmux-config/);
+  assert.equal(configResult.exitCode, 0);
+  assert.match(configResult.stdoutText, /# >>> opencode-tmux >>>/);
+  assert.match(configResult.stdoutText, /--provider/);
+  assert.match(configResult.stdoutText, /--waiting/);
+});
+
+test("CLI install-tmux writes and replaces a marked config block", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "opencode-tmux-cli-test-"));
+  const filePath = join(dir, "tmux.conf");
+  const firstRun = await runCommand([BIN_PATH, "install-tmux", "--file", filePath]);
+  const secondRun = await runCommand([
+    BIN_PATH,
+    "install-tmux",
+    "--file",
+    filePath,
+    "--provider",
+    "server",
+  ]);
+  const contents = readFileSync(filePath, "utf8");
+
+  assert.equal(firstRun.exitCode, 0);
+  assert.equal(secondRun.exitCode, 0);
+  assert.match(contents, /# >>> opencode-tmux >>>/);
+  assert.match(contents, /# <<< opencode-tmux <<</);
+  assert.match(contents, /--provider/);
+  assert.equal(contents.match(/# >>> opencode-tmux >>>/g)?.length, 1);
 });

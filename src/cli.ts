@@ -548,7 +548,13 @@ async function runStatusCommand(options: StatusOptions): Promise<void> {
   const tmuxAvailable = Boolean(process.env.TMUX);
   const currentTarget =
     options.summary || !tmuxAvailable ? undefined : await getCurrentTmuxTarget();
-  console.log(buildStatusOutput(panes, options, { currentTarget, tmuxAvailable }));
+  console.log(
+    buildStatusOutput(
+      panes,
+      options,
+      currentTarget ? { currentTarget, tmuxAvailable } : { tmuxAvailable },
+    ),
+  );
 }
 
 export function getPopupFilterArgs(filter: TmuxConfigOptions["popupFilter"]): string[] {

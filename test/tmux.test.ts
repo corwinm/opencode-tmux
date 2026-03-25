@@ -1,13 +1,21 @@
 import assert from "node:assert/strict";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
+  capturePanePreview,
+  captureWindowPreview,
   buildSwitchToPaneCommand,
   detectOpencodePane,
   discoverOpencodePanesFromList,
+  getCurrentTmuxTarget,
+  listAllPanes,
   normalizeCapturedPaneLines,
   parseListAllPanesOutput,
   parsePaneLine,
+  switchToPane,
 } from "../src/core/tmux.ts";
 import type { TmuxPane } from "../src/types.ts";
 
@@ -28,6 +36,48 @@ function createPane(overrides: Partial<TmuxPane> = {}): TmuxPane {
     tty: overrides.tty ?? "/dev/ttys001",
     target: overrides.target ?? `${sessionName}:${windowIndex}.${paneIndex}`,
   };
+}
+
+function setEnv(updates: Record<string, string | undefined>): () => void {
+  const previous = new Map<string, string | undefined>();
+
+  for (const [key, value] of Object.entries(updates)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  };
+}
+
+function installFakeTmux(script: string): { pathEntry: string; logPath: string } {
+  const dir = mkdtempSync(join(tmpdir(), "opencode-tmux-fake-tmux-"));
+  const tmuxPath = join(dir, "tmux");
+  const logPath = join(dir, "tmux.log");
+  const resolvedScript = script.replaceAll("__LOG_PATH__", logPath);
+
+  writeFileSync(
+    tmuxPath,
+    `#!/usr/bin/env bash
+set -euo pipefail
+${resolvedScript}
+`,
+    "utf8",
+  );
+  chmodSync(tmuxPath, 0o755);
+
+  return { pathEntry: dir, logPath };
 }
 
 test("detectOpencodePane recognizes OC title prefixes, medium-confidence blends, and no-signal panes", () => {
@@ -157,4 +207,84 @@ test("buildSwitchToPaneCommand targets the pane correctly inside and outside tmu
     "-t",
     "work:4.2",
   ]);
+});
+
+test("listAllPanes and getCurrentTmuxTarget call tmux and parse their output", async () => {
+  const fakeTmux = installFakeTmux(`
+if [ "$1" = "list-panes" ] && [ "$2" = "-a" ]; then
+  printf 'work\t1\t0\t%%1\tOpenCode\topencode\t/tmp/project\t1\t/dev/ttys001\n'
+  exit 0
+fi
+if [ "$1" = "display-message" ]; then
+  printf 'work:1.0\n'
+  exit 0
+fi
+printf 'unexpected args: %s\n' "$*" >&2
+exit 1
+`);
+  const restoreEnv = setEnv({ PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}` });
+
+  try {
+    const panes = await listAllPanes();
+
+    assert.equal(panes.length, 1);
+    assert.equal(panes[0]?.target, "work:1.0");
+    assert.equal(await getCurrentTmuxTarget(), "work:1.0");
+  } finally {
+    restoreEnv();
+  }
+});
+
+test("capturePanePreview and captureWindowPreview normalize tmux capture output", async () => {
+  const fakeTmux = installFakeTmux(`
+if [ "$1" = "capture-pane" ]; then
+  printf 'line\tone\n\\033[31mred\\033[0m\n\n'
+  exit 0
+fi
+if [ "$1" = "list-panes" ] && [ "$2" = "-t" ]; then
+  printf 'work\t1\t0\t1\t0\t0\t20\t2\tOpenCode\n'
+  printf 'work\t1\t1\t0\t20\t0\t20\t2\tShell\n'
+  exit 0
+fi
+printf 'unexpected args: %s\n' "$*" >&2
+exit 1
+`);
+  const restoreEnv = setEnv({ PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}` });
+
+  try {
+    assert.deepEqual(await capturePanePreview("work:1.0", 4), ["line    one", "red", ""]);
+
+    const snapshot = await captureWindowPreview("work:1.0");
+    assert.equal(snapshot.sessionName, "work");
+    assert.equal(snapshot.width, 40);
+    assert.equal(snapshot.height, 2);
+    assert.equal(snapshot.panes.length, 2);
+    assert.deepEqual(snapshot.panes[0]?.lines, ["line    one", "red", ""]);
+  } finally {
+    restoreEnv();
+  }
+});
+
+test("switchToPane forwards tmux failures and uses the expected command shape", async () => {
+  const fakeTmux = installFakeTmux(`
+printf '%s\n' "$*" >> '__LOG_PATH__'
+printf 'switch failed\n' >&2
+exit 1
+`);
+  const restoreEnv = setEnv({
+    PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}`,
+    TMUX: "1",
+  });
+
+  try {
+    await assert.rejects(
+      switchToPane(createPane({ target: "work:4.2", windowIndex: 4, paneIndex: 2 })),
+      /switch failed/,
+    );
+
+    const log = readFileSync(fakeTmux.logPath, "utf8");
+    assert.match(log, /switch-client -t work ; select-window -t work:4 ; select-pane -t work:4\.2/);
+  } finally {
+    restoreEnv();
+  }
 });

@@ -5,7 +5,12 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
-import { attachRuntimeToPanes, describeServerMapInput } from "../src/core/opencode.ts";
+import {
+  attachRuntimeToPanes,
+  buildServerMapTemplate,
+  describeServerMapInput,
+  getRuntimeProviderHelpText,
+} from "../src/core/opencode.ts";
 import type { DiscoveredPane, PaneRuntimeSummary, TmuxPane } from "../src/types.ts";
 
 function createPane(overrides: Partial<TmuxPane> = {}): TmuxPane {
@@ -125,6 +130,13 @@ function getRuntime(summary: PaneRuntimeSummary) {
   return summary.runtime;
 }
 
+function getSummary(summaries: PaneRuntimeSummary[], index: number): PaneRuntimeSummary {
+  const summary = summaries[index];
+
+  assert.ok(summary, `expected summary at index ${index}`);
+  return summary;
+}
+
 test("plugin provider matches panes by target, pane id, and legacy directory state", async () => {
   const pluginStateDir = createPluginStateDir([
     {
@@ -162,13 +174,13 @@ test("plugin provider matches panes by target, pane id, and legacy directory sta
     ];
     const summaries = await attachRuntimeToPanes(panes, { provider: "plugin" });
 
-    assert.equal(getRuntime(summaries[0]).status, "running");
-    assert.equal(getRuntime(summaries[0]).source, "plugin-exact");
-    assert.equal(getRuntime(summaries[1]).status, "waiting-input");
-    assert.equal(getRuntime(summaries[1]).source, "plugin-exact");
-    assert.equal(getRuntime(summaries[2]).status, "idle");
-    assert.equal(getRuntime(summaries[2]).source, "plugin-exact");
-    assert.equal(getRuntime(summaries[2]).session?.title, "Session C");
+    assert.equal(getRuntime(getSummary(summaries, 0)).status, "running");
+    assert.equal(getRuntime(getSummary(summaries, 0)).source, "plugin-exact");
+    assert.equal(getRuntime(getSummary(summaries, 1)).status, "waiting-input");
+    assert.equal(getRuntime(getSummary(summaries, 1)).source, "plugin-exact");
+    assert.equal(getRuntime(getSummary(summaries, 2)).status, "idle");
+    assert.equal(getRuntime(getSummary(summaries, 2)).source, "plugin-exact");
+    assert.equal(getRuntime(getSummary(summaries, 2)).session?.title, "Session C");
   } finally {
     restoreEnv();
   }
@@ -207,11 +219,11 @@ test("plugin provider uses safe descendant heuristics and leaves ambiguous panes
     ];
     const summaries = await attachRuntimeToPanes(panes, { provider: "plugin" });
 
-    assert.equal(getRuntime(summaries[0]).status, "running");
-    assert.equal(getRuntime(summaries[0]).source, "plugin-descendant");
-    assert.equal(getRuntime(summaries[0]).match.strategy, "descendant-only");
-    assert.equal(getRuntime(summaries[1]).status, "unknown");
-    assert.equal(getRuntime(summaries[1]).match.provider, "none");
+    assert.equal(getRuntime(getSummary(summaries, 0)).status, "running");
+    assert.equal(getRuntime(getSummary(summaries, 0)).source, "plugin-descendant");
+    assert.equal(getRuntime(getSummary(summaries, 0)).match.strategy, "descendant-only");
+    assert.equal(getRuntime(getSummary(summaries, 1)).status, "unknown");
+    assert.equal(getRuntime(getSummary(summaries, 1)).match.provider, "none");
   } finally {
     restoreEnv();
   }
@@ -311,12 +323,12 @@ test("sqlite provider classifies exact matches across idle, waiting, running, an
       { provider: "sqlite" },
     );
 
-    assert.equal(getRuntime(summaries[0]).status, "idle");
-    assert.equal(getRuntime(summaries[1]).status, "waiting-question");
-    assert.equal(getRuntime(summaries[2]).status, "waiting-input");
-    assert.equal(getRuntime(summaries[3]).status, "running");
-    assert.equal(getRuntime(summaries[4]).status, "running");
-    assert.match(getRuntime(summaries[4]).detail, /unfinished step/);
+    assert.equal(getRuntime(getSummary(summaries, 0)).status, "idle");
+    assert.equal(getRuntime(getSummary(summaries, 1)).status, "waiting-question");
+    assert.equal(getRuntime(getSummary(summaries, 2)).status, "waiting-input");
+    assert.equal(getRuntime(getSummary(summaries, 3)).status, "running");
+    assert.equal(getRuntime(getSummary(summaries, 4)).status, "running");
+    assert.match(getRuntime(getSummary(summaries, 4)).detail, /unfinished step/);
   } finally {
     database.close();
     restoreEnv();
@@ -383,14 +395,14 @@ test("sqlite provider uses descendant heuristics only when they are unambiguous"
       { provider: "sqlite" },
     );
 
-    assert.equal(getRuntime(summaries[0]).source, "sqlite-descendant-running");
-    assert.equal(getRuntime(summaries[0]).match.strategy, "descendant-running");
-    assert.equal(getRuntime(summaries[1]).source, "sqlite-descendant-recent");
-    assert.equal(getRuntime(summaries[1]).match.strategy, "descendant-recent");
-    assert.equal(getRuntime(summaries[2]).source, "sqlite-descendant-only");
-    assert.equal(getRuntime(summaries[2]).match.strategy, "descendant-only");
-    assert.equal(getRuntime(summaries[3]).status, "unknown");
-    assert.equal(getRuntime(summaries[3]).match.provider, "none");
+    assert.equal(getRuntime(getSummary(summaries, 0)).source, "sqlite-descendant-running");
+    assert.equal(getRuntime(getSummary(summaries, 0)).match.strategy, "descendant-running");
+    assert.equal(getRuntime(getSummary(summaries, 1)).source, "sqlite-descendant-recent");
+    assert.equal(getRuntime(getSummary(summaries, 1)).match.strategy, "descendant-recent");
+    assert.equal(getRuntime(getSummary(summaries, 2)).source, "sqlite-descendant-only");
+    assert.equal(getRuntime(getSummary(summaries, 2)).match.strategy, "descendant-only");
+    assert.equal(getRuntime(getSummary(summaries, 3)).status, "unknown");
+    assert.equal(getRuntime(getSummary(summaries, 3)).match.provider, "none");
   } finally {
     database.close();
     restoreEnv();
@@ -444,8 +456,8 @@ test("server provider parses inline and file-backed maps and normalizes endpoint
       { provider: "server", serverMap: mapFile },
     );
 
-    assert.equal(getRuntime(summaries[0]).status, "idle");
-    assert.equal(getRuntime(fileBackedSummaries[0]).status, "waiting-question");
+    assert.equal(getRuntime(getSummary(summaries, 0)).status, "idle");
+    assert.equal(getRuntime(getSummary(fileBackedSummaries, 0)).status, "waiting-question");
     assert.equal(describeServerMapInput(undefined), null);
   } finally {
     globalThis.fetch = originalFetch;
@@ -466,6 +478,25 @@ test("server provider rejects non-object maps", async () => {
   await assert.rejects(
     attachRuntimeToPanes([createDiscoveredPane()], { provider: "server", serverMap: "[]" }),
     /server map must be a JSON object/,
+  );
+});
+
+test("runtime provider helpers expose provider docs, template output, and validation", async () => {
+  const template = buildServerMapTemplate(
+    [createPane({ target: "work:1.0" }), createPane({ target: "work:1.1", paneIndex: 1 })],
+    { basePort: 4096, hostname: "127.0.0.2" },
+  );
+  const helpText = getRuntimeProviderHelpText();
+
+  assert.deepEqual(template, {
+    "work:1.0": "http://127.0.0.2:4096",
+    "work:1.1": "http://127.0.0.2:4097",
+  });
+  assert.match(helpText, /Runtime providers:/);
+  assert.match(helpText, /plugin  Use opencode plugin state files only/);
+  await assert.rejects(
+    attachRuntimeToPanes([createDiscoveredPane()], { provider: "bogus" as never }),
+    /invalid runtime provider: bogus/,
   );
 });
 
@@ -529,10 +560,10 @@ test("auto provider keeps plugin matches and falls back to sqlite when server st
       },
     );
 
-    assert.equal(getRuntime(summaries[0]).source, "plugin-exact");
-    assert.equal(getRuntime(summaries[0]).status, "running");
-    assert.equal(getRuntime(summaries[1]).source, "sqlite-exact");
-    assert.equal(getRuntime(summaries[1]).status, "waiting-input");
+    assert.equal(getRuntime(getSummary(summaries, 0)).source, "plugin-exact");
+    assert.equal(getRuntime(getSummary(summaries, 0)).status, "running");
+    assert.equal(getRuntime(getSummary(summaries, 1)).source, "sqlite-exact");
+    assert.equal(getRuntime(getSummary(summaries, 1)).status, "waiting-input");
   } finally {
     database.close();
     globalThis.fetch = originalFetch;
