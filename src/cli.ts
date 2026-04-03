@@ -568,6 +568,10 @@ interface StatusOutputContext {
   tmuxAvailable: boolean;
 }
 
+function shouldFallbackStatusToSummary(error: unknown): boolean {
+  return error instanceof Error && /no current client/i.test(error.message);
+}
+
 export function buildStatusOutput(
   panes: PaneRuntimeSummary[],
   options: StatusOptions,
@@ -633,13 +637,23 @@ export function buildStatusOutput(
 async function runStatusCommand(options: StatusOptions): Promise<void> {
   const panes = await loadPaneRuntimeSummaries(options);
   const tmuxAvailable = Boolean(process.env.TMUX);
-  const currentTarget =
-    options.summary || !tmuxAvailable ? undefined : await getCurrentTmuxTarget();
+  let currentTarget: PaneTarget | undefined;
+
+  if (!options.summary && tmuxAvailable) {
+    try {
+      currentTarget = await getCurrentTmuxTarget();
+    } catch (error) {
+      if (!shouldFallbackStatusToSummary(error)) {
+        throw error;
+      }
+    }
+  }
+
   console.log(
     buildStatusOutput(
       panes,
       options,
-      currentTarget ? { currentTarget, tmuxAvailable } : { tmuxAvailable },
+      currentTarget ? { currentTarget, tmuxAvailable } : { tmuxAvailable: false },
     ),
   );
 }

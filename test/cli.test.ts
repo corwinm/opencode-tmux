@@ -767,6 +767,55 @@ exit 1
   }
 });
 
+test("CLI status falls back to summary output when tmux has no current client", async () => {
+  const fakeTmux = installFakeTmux(`
+if [ "$1" = "list-panes" ]; then
+  printf 'work\t1\t0\t%%1\tOpenCode\topencode\t/tmp/project-a\t0\t/dev/ttys001\n'
+  printf 'work\t1\t1\t%%2\tOpenCode\topencode\t/tmp/project-b\t1\t/dev/ttys002\n'
+  exit 0
+fi
+if [ "$1" = "display-message" ]; then
+  printf 'no current client\n' >&2
+  exit 1
+fi
+printf 'unexpected args: %s\n' "$*" >&2
+exit 1
+`);
+  const pluginStateDir = createPluginStateDir([
+    {
+      target: "work:1.0",
+      directory: "/tmp/project-a",
+      title: "Idle Session",
+      status: "idle",
+      activity: "idle",
+      updatedAt: 100,
+    },
+    {
+      target: "work:1.1",
+      directory: "/tmp/project-b",
+      title: "Waiting Session",
+      status: "waiting-question",
+      activity: "busy",
+      updatedAt: 200,
+    },
+  ]);
+  const restoreEnv = setEnv({
+    PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}`,
+    OPENCODE_TMUX_STATE_DIR: pluginStateDir,
+    TMUX: "1",
+  });
+
+  try {
+    const result = await runCommand([BIN_PATH, "status", "--provider", "plugin"]);
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.stdoutText.trim(), "󰚩 |  ");
+    assert.equal(result.stderrText.trim(), "");
+  } finally {
+    restoreEnv();
+  }
+});
+
 test("CLI popup --print-command prints the inner popup-ui command without tmux", async () => {
   const result = await runCommand([
     BIN_PATH,
