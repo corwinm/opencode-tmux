@@ -249,12 +249,7 @@ function shouldPreserveWaitingStatus(input: {
     return false;
   }
 
-  return (
-    input.status === "running" ||
-    input.status === "busy" ||
-    input.busy === true ||
-    input.eventType === "session.status"
-  );
+  return input.eventType === "session.status" && input.status === null && input.busy === null;
 }
 
 export const OpencodeTmuxPlugin = async ({ directory, project, client }: PluginInitContext) => {
