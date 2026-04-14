@@ -142,6 +142,47 @@ test("Pi runtime matches panes by target, pane id, and unique cwd fallback", asy
   }
 });
 
+test("Pi runtime ignores stale exact state when the pane cwd no longer matches", async () => {
+  const fakeTmux = installFakeTmux(`
+if [ "$1" = "capture-pane" ]; then
+  printf 'Pi is ready to continue your task.\n'
+  printf 'Would you like me to apply the patch now?\n'
+  exit 0
+fi
+printf 'unexpected args: %s\n' "$*" >&2
+exit 1
+`);
+  const stateDir = createPiStateDir([
+    {
+      target: "work:1.0",
+      paneId: "%1",
+      directory: "/tmp/old-pi-project",
+      title: "Old Pi Session",
+      status: "idle",
+      activity: "idle",
+      updatedAt: 100,
+    },
+  ]);
+  const restoreEnv = setEnv({
+    PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}`,
+    OPENCODE_TMUX_PI_STATE_DIR: stateDir,
+  });
+
+  try {
+    const summaries = await attachRuntimeToPanes([
+      createDiscoveredPiPane({ target: "work:1.0", paneId: "%1", currentPath: "/tmp/pi-project" }),
+    ]);
+
+    assert.equal(summaries[0]?.runtime.status, "waiting-input");
+    assert.equal(summaries[0]?.runtime.activity, "busy");
+    assert.equal(summaries[0]?.runtime.source, "pi-preview");
+    assert.equal(summaries[0]?.runtime.match.provider, "pi");
+    assert.equal(summaries[0]?.runtime.session?.title, undefined);
+  } finally {
+    restoreEnv();
+  }
+});
+
 test("Pi runtime uses preview classification when no extension state matches", async () => {
   const fakeTmux = installFakeTmux(`
 if [ "$1" = "capture-pane" ]; then

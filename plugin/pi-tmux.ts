@@ -98,6 +98,14 @@ function resolveTmuxPaneTarget(paneId: string | null): string | null {
   return target ? target : null;
 }
 
+function refreshTmuxClients() {
+  const result = runTmuxCommand(["refresh-client", "-S"]);
+
+  if (result.status !== 0) {
+    return;
+  }
+}
+
 function toFileName(input: { directory: string; paneId: string | null }) {
   if (input.paneId) {
     return `pane-${Buffer.from(input.paneId).toString("hex")}.json`;
@@ -232,6 +240,7 @@ export default function (pi: PiExtensionAPI) {
 
     mkdirSync(getPiStateDir(), { recursive: true });
     writeFileSync(filePath, JSON.stringify(state, null, 2), "utf8");
+    refreshTmuxClients();
   }
 
   function removeState(directory: string) {
@@ -243,6 +252,7 @@ export default function (pi: PiExtensionAPI) {
 
     try {
       unlinkSync(filePath);
+      refreshTmuxClients();
     } catch {
       // Ignore cleanup failures.
     }

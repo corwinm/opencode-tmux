@@ -188,16 +188,23 @@ function classifyPiState(
   });
 }
 
+function matchesPiStateDirectory(
+  state: PiStateFile | undefined,
+  pane: TmuxPane,
+): state is PiStateFile {
+  return Boolean(state?.directory && state.directory === pane.currentPath);
+}
+
 function getExactPiState(index: PiStateIndex, pane: TmuxPane): PiStateFile | null {
   const targetState = index.exactTargetMatches.get(pane.target);
 
-  if (targetState) {
+  if (matchesPiStateDirectory(targetState, pane)) {
     return targetState;
   }
 
   const paneIdState = index.exactPaneIdMatches.get(pane.paneId);
 
-  if (paneIdState) {
+  if (matchesPiStateDirectory(paneIdState, pane)) {
     return paneIdState;
   }
 

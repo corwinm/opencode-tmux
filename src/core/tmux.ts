@@ -67,6 +67,15 @@ function matchesCommand(command: string, binaryName: string): boolean {
   return command === binaryName || command.startsWith(`${binaryName}-`);
 }
 
+function isLikelyPiProcess(command: string): boolean {
+  return (
+    matchesCommand(command, "pi") ||
+    matchesCommand(command, "node") ||
+    matchesCommand(command, "bun") ||
+    matchesCommand(command, "deno")
+  );
+}
+
 function pickDetectedAgent(
   candidates: Array<{
     agent: AgentKind;
@@ -120,12 +129,17 @@ export function detectAgentPane(pane: TmuxPane): PaneDetection {
     codexReasons.push("command:codex");
   }
 
-  if (lowerTitle === "pi" || lowerTitle.startsWith("pi - ") || title.startsWith("π - ")) {
+  const hasPiTitleHint =
+    lowerTitle === "pi" || lowerTitle.startsWith("pi - ") || title.startsWith("π - ");
+
+  if (hasPiTitleHint) {
     piReasons.push("title:Pi");
   }
 
   if (matchesCommand(command, "pi")) {
     piReasons.push("command:pi");
+  } else if (hasPiTitleHint && isLikelyPiProcess(command)) {
+    piReasons.push("command:pi-wrapper");
   }
 
   if (opencodeReasons.some((reason) => !reason.startsWith("path:"))) {
@@ -147,11 +161,11 @@ export function detectAgentPane(pane: TmuxPane): PaneDetection {
     });
   }
 
-  if (piReasons.length > 0) {
+  if (piReasons.some((reason) => reason.startsWith("command:"))) {
     candidates.push({
       agent: "pi",
       reasons: piReasons,
-      score: piReasons.includes("command:pi") ? 5 : 4,
+      score: hasPiTitleHint ? 5 : 4,
     });
   }
 
