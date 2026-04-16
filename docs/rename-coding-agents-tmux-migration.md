@@ -17,6 +17,7 @@ The new preferred public names are:
 - **CLI:** `coding-agents-tmux`
 - **tmux options:** `@coding-agents-tmux-*`
 - **env vars:** `CODING_AGENTS_TMUX_*`
+- **Catppuccin status module export:** `@catppuccin_status_agents`
 - **state root:** `~/.local/state/coding-agents-tmux/`
 - **tmux plugin dir:** `~/.tmux/plugins/coding-agents-tmux`
 - **Pi extension dir:** `~/.pi/agent/extensions/coding-agents-tmux/`
@@ -29,6 +30,7 @@ The old names are still supported in this transition release:
 - `opencode-tmux` CLI
 - `@opencode-tmux-*` tmux options
 - `OPENCODE_TMUX_*` env vars
+- legacy Catppuccin module export `@catppuccin_status_opencode`
 - legacy state under `~/.local/state/opencode-tmux/`
 - legacy tmux entrypoint `opencode-tmux.tmux`
 - legacy Pi extension path `~/.pi/agent/extensions/opencode-tmux/`
@@ -116,7 +118,25 @@ export CODING_AGENTS_TMUX_PI_STATE_DIR=/tmp/pi-state
 export CODING_AGENTS_TMUX_SERVER_MAP='{"work:1.0":"http://127.0.0.1:4096"}'
 ```
 
-### 5. Reload tmux and restart agent sessions if needed
+### 5. Update the Catppuccin module name if you use manual mode
+
+If you manually place the module in `status-left` or `status-right`, update the exported name.
+
+Before:
+
+```tmux
+set -ag status-right "#{E:@catppuccin_status_opencode}"
+```
+
+After:
+
+```tmux
+set -ag status-right "#{E:@catppuccin_status_agents}"
+```
+
+The old `@catppuccin_status_opencode` export still works as a compatibility alias for now.
+
+### 6. Reload tmux and restart agent sessions if needed
 
 After changing plugin config or bundled integration paths:
 
@@ -204,6 +224,7 @@ This means you should treat the following as deprecated now:
 - added `CODING_AGENTS_TMUX_*` env var aliases
 - switched generated tmux config snippets to the new name
 - updated install paths to prefer `coding-agents-tmux`
+- renamed the Catppuccin module export to `@catppuccin_status_agents`
 - kept old names as temporary compatibility aliases
 
 ### Upgrade impact

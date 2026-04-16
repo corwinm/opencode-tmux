@@ -275,6 +275,7 @@ Tasks:
 
 - introduce `CODING_AGENTS_TMUX_*` aliases for public env vars
 - introduce `@coding-agents-tmux-*` aliases for public tmux options
+- rename the Catppuccin status export from `@catppuccin_status_opencode` to `@catppuccin_status_agents`
 - document precedence rules
 - keep old names working
 
@@ -290,6 +291,7 @@ Checklist:
 - [x] Add `CODING_AGENTS_TMUX_*` aliases
 - [x] Inventory all `@opencode-tmux-*` tmux options
 - [x] Add `@coding-agents-tmux-*` aliases
+- [x] Rename the Catppuccin status export and keep a compatibility alias
 - [x] Document precedence rules
 - [x] Add tests for old/new option resolution
 
@@ -362,6 +364,7 @@ Tasks:
 - call out what existing users do and do not need to change
 - document deprecated names as supported aliases
 - include copy-paste migration examples
+- mention theme-specific/manual-mode migrations such as the Catppuccin export rename
 
 Checklist:
 
@@ -369,6 +372,7 @@ Checklist:
 - [x] Write migration examples for tmux config
 - [x] Document compatibility guarantees
 - [x] Document deprecated-but-supported names
+- [x] Document the Catppuccin manual-mode export rename
 
 ## Proposed implementation order
 
@@ -489,3 +493,4 @@ The rename is successful when:
 - 2026-04-14: Added `test/tmux-plugin-rename.test.ts` to verify that the new tmux entrypoint prefers `@coding-agents-tmux-*` option names over legacy ones and that the renamed OpenCode/Pi install paths are created alongside the compatibility aliases.
 - 2026-04-14: Re-validated the rename work with `npm test`, `npm run typecheck`, `npm run lint`, `npm run shell:check`, and `npm run fmt:check` after restoring dev dependencies with `npm ci`.
 - 2026-04-14: Audited the remaining markdown docs, updated `PLAN.md`, `TASKS.md`, and the Pi support plan for the new public name where practical, and added `docs/rename-coding-agents-tmux-migration.md` as a dedicated migration and release-notes guide.
+- 2026-04-16: Renamed the Catppuccin manual-mode status export from `@catppuccin_status_opencode` to `@catppuccin_status_agents`, kept the legacy export as a compatibility alias, and updated the README plus migration guide to call out the change explicitly.

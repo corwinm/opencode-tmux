@@ -236,7 +236,7 @@ By default the plugin uses manual mode so your theme can place the segment itsel
 
 With the bundled plugin provider, `0` makes the status line event-driven: session events and tmux navigation hooks trigger redraws instead of polling on a timer. If you switch to the `sqlite` or `server` provider, set a positive interval if you still want periodic background refreshes.
 
-For Catppuccin, the exported module name still uses its legacy compatibility name for now:
+For Catppuccin, use the renamed module export:
 
 ```tmux
 set -g @coding-agents-tmux-status 'on'
@@ -244,7 +244,7 @@ set -g @coding-agents-tmux-status-mode 'manual'
 
 set -g status-right "#{E:@catppuccin_status_session}"
 set -ag status-right "#{E:@catppuccin_status_directory}"
-set -ag status-right "#{E:@catppuccin_status_opencode}"
+set -ag status-right "#{E:@catppuccin_status_agents}"
 ```
 
 For other themes, use the tone-aware inline export:
@@ -262,7 +262,9 @@ If you want to fully control the wrapper yourself, use the plain text export ins
 set -ag status-right " #[fg=colour81]󰚩 #[default]#{@coding-agents-tmux-status-text}"
 ```
 
-`manual` mode is the default. `#{E:@catppuccin_status_opencode}` gives Catppuccin users a native-looking module, `#{@coding-agents-tmux-status-inline-format}` gives other themes a tone-aware inline segment, and `#{@coding-agents-tmux-status-text}` gives a plain live summary text export for fully custom wrappers. `append` mode restores the old behavior and appends automatically.
+`manual` mode is the default. `#{E:@catppuccin_status_agents}` gives Catppuccin users a native-looking module, `#{@coding-agents-tmux-status-inline-format}` gives other themes a tone-aware inline segment, and `#{@coding-agents-tmux-status-text}` gives a plain live summary text export for fully custom wrappers. `append` mode restores the old behavior and appends automatically.
+
+`@catppuccin_status_opencode` still works as a compatibility alias for now.
 
 ## Configuration
 

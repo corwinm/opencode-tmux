@@ -111,21 +111,21 @@ configure_catppuccin_status_module() {
   local module
 
   if [ -z "$text_segment" ] || ! catppuccin_loaded; then
-    tmux set-option -gu @catppuccin_opencode_icon
-    tmux set-option -gu @catppuccin_opencode_color
-    tmux set-option -gu @catppuccin_opencode_text
-    tmux set-option -gu @catppuccin_status_opencode_icon_fg
-    tmux set-option -gu @catppuccin_status_opencode_icon_bg
-    tmux set-option -gu @catppuccin_status_opencode_text_fg
-    tmux set-option -gu @catppuccin_status_opencode_text_bg
-    tmux set-option -gu @catppuccin_status_opencode
+    unset_tmux_option_alias '@catppuccin_agents_icon' '@catppuccin_opencode_icon'
+    unset_tmux_option_alias '@catppuccin_agents_color' '@catppuccin_opencode_color'
+    unset_tmux_option_alias '@catppuccin_agents_text' '@catppuccin_opencode_text'
+    unset_tmux_option_alias '@catppuccin_status_agents_icon_fg' '@catppuccin_status_opencode_icon_fg'
+    unset_tmux_option_alias '@catppuccin_status_agents_icon_bg' '@catppuccin_status_opencode_icon_bg'
+    unset_tmux_option_alias '@catppuccin_status_agents_text_fg' '@catppuccin_status_opencode_text_fg'
+    unset_tmux_option_alias '@catppuccin_status_agents_text_bg' '@catppuccin_status_opencode_text_bg'
+    unset_tmux_option_alias '@catppuccin_status_agents' '@catppuccin_status_opencode'
     return
   fi
 
-  tmux set-option -gq @catppuccin_opencode_icon "$prefix "
+  set_tmux_option_alias '@catppuccin_agents_icon' '@catppuccin_opencode_icon' "$prefix "
   accent_format="#{?#{==:#{E:@coding-agents-tmux-status-tone},waiting},$waiting_color,#{?#{==:#{E:@coding-agents-tmux-status-tone},idle},$idle_color,#{?#{==:#{E:@coding-agents-tmux-status-tone},unknown},$unknown_color,$accent_color}}}"
-  tmux set-option -gq @catppuccin_opencode_color "$accent_format"
-  tmux set-option -gq @catppuccin_opencode_text "$text_segment"
+  set_tmux_option_alias '@catppuccin_agents_color' '@catppuccin_opencode_color' "$accent_format"
+  set_tmux_option_alias '@catppuccin_agents_text' '@catppuccin_opencode_text' "$text_segment"
 
   left_separator="$(tmux show-option -gqv @catppuccin_status_left_separator)"
   right_separator="$(tmux show-option -gqv @catppuccin_status_right_separator)"
@@ -148,17 +148,17 @@ configure_catppuccin_status_module() {
     connect_style=''
   fi
 
-  tmux set-option -gq @catppuccin_status_opencode_icon_fg "$theme_crust"
-  tmux set-option -gq @catppuccin_status_opencode_icon_bg "$accent_format"
-  tmux set-option -gq @catppuccin_status_opencode_text_fg "$theme_fg"
-  tmux set-option -gq @catppuccin_status_opencode_text_bg "$module_text_bg"
+  set_tmux_option_alias '@catppuccin_status_agents_icon_fg' '@catppuccin_status_opencode_icon_fg' "$theme_crust"
+  set_tmux_option_alias '@catppuccin_status_agents_icon_bg' '@catppuccin_status_opencode_icon_bg' "$accent_format"
+  set_tmux_option_alias '@catppuccin_status_agents_text_fg' '@catppuccin_status_opencode_text_fg' "$theme_fg"
+  set_tmux_option_alias '@catppuccin_status_agents_text_bg' '@catppuccin_status_opencode_text_bg' "$module_text_bg"
 
-  module="#[fg=#{E:@catppuccin_status_opencode_icon_bg},nobold,nounderscore,noitalics]$connect_style$left_separator"
-  module="$module#[fg=#{E:@catppuccin_status_opencode_icon_fg},bg=#{E:@catppuccin_status_opencode_icon_bg}]${prefix} "
+  module="#[fg=#{E:@catppuccin_status_agents_icon_bg},nobold,nounderscore,noitalics]$connect_style$left_separator"
+  module="$module#[fg=#{E:@catppuccin_status_agents_icon_fg},bg=#{E:@catppuccin_status_agents_icon_bg}]${prefix} "
   module="$module$middle_separator"
-  module="$module#[fg=#{E:@catppuccin_status_opencode_text_fg},bg=#{E:@catppuccin_status_opencode_text_bg}] #{E:@catppuccin_opencode_text}"
-  module="$module#[fg=#{E:@catppuccin_status_opencode_text_bg}]$connect_style$right_separator"
-  tmux set-option -gq @catppuccin_status_opencode "$module"
+  module="$module#[fg=#{E:@catppuccin_status_agents_text_fg},bg=#{E:@catppuccin_status_agents_text_bg}] #{E:@catppuccin_agents_text}"
+  module="$module#[fg=#{E:@catppuccin_status_agents_text_bg}]$connect_style$right_separator"
+  set_tmux_option_alias '@catppuccin_status_agents' '@catppuccin_status_opencode' "$module"
 }
 
 remove_status_segment() {
