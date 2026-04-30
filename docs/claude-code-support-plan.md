@@ -34,6 +34,47 @@ The main difference from Pi is:
 
 So the Claude Code equivalent of a Pi extension is not a TypeScript extension module first; it is a **hook-backed integration**, optionally packaged as a Claude Code plugin later.
 
+## Progress tracker
+
+### Current status
+
+- [x] Research completed
+- [x] Claude pane detection implemented
+- [x] Claude hook-backed state ingestion implemented
+- [x] Claude install/template commands implemented
+- [x] Claude runtime attachment and fallback behavior implemented
+- [x] Tests added and passing
+- [x] README and user-facing docs updated
+- [ ] Optional Claude plugin packaging explored
+
+### Implemented in this iteration
+
+Shipped support includes:
+
+- `claude` as a first-class internal agent kind
+- tmux pane detection for `claude` processes and common Claude Code title hints
+- `src/core/claude.ts` for Claude hook ingestion, state reads, runtime matching, preview fallback, and command fallback
+- new CLI commands:
+  - `claude-hooks-template`
+  - `claude-hook-state`
+  - `install-claude`
+- runtime dispatch updates so Claude panes are handled explicitly alongside OpenCode, Codex, and Pi
+- tmux plugin install support for Claude hooks
+- shared tmux auto-install selector support:
+  - `@coding-agents-tmux-auto-install 'auto'`
+  - `@coding-agents-tmux-auto-install 'off'`
+  - `@coding-agents-tmux-auto-install 'opencode,pi,codex,claude'`
+- README updates for Claude support, install options, and troubleshooting
+- test coverage for Claude runtime behavior, CLI commands, tmux detection, render output, and tmux auto-install selection
+
+### Remaining follow-up
+
+Still intentionally left for later:
+
+- packaging the Claude integration as a Claude Code plugin
+- validating a `claude --plugin-dir` development/distribution flow
+- deciding whether plugin packaging should become a supported user-facing install path
+
 ## Research summary
 
 ### 1. Claude Code exposes lifecycle hooks directly
@@ -655,46 +696,46 @@ For the first Claude Code iteration:
 
 ### Phase 1: core model and pane detection
 
-- [ ] Add Claude agent kind to `src/types.ts`
-- [ ] Add Claude runtime source/provider values
-- [ ] Add Claude pane detection in `src/core/tmux.ts`
-- [ ] Update CLI help and validation to include Claude
+- [x] Add Claude agent kind to `src/types.ts`
+- [x] Add Claude runtime source/provider values
+- [x] Add Claude pane detection in `src/core/tmux.ts`
+- [x] Update CLI help and validation to include Claude
 
 ### Phase 2: hook-backed state ingestion
 
-- [ ] Add `src/core/claude.ts`
-- [ ] Add Claude state file reader/writer helpers
-- [ ] Add `claude-hook-state` CLI command
-- [ ] Map documented hook events to normalized runtime status
-- [ ] Remove state files on `SessionEnd`
+- [x] Add `src/core/claude.ts`
+- [x] Add Claude state file reader/writer helpers
+- [x] Add `claude-hook-state` CLI command
+- [x] Map documented hook events to normalized runtime status
+- [x] Remove state files on `SessionEnd`
 
 ### Phase 3: install/template support
 
-- [ ] Add `claude-hooks-template` CLI command
-- [ ] Add `install-claude` CLI command
-- [ ] Implement JSON merge/update logic for `~/.claude/settings.json`
-- [ ] Keep install idempotent and preserve unrelated user hooks
-- [ ] Design a shared tmux-plugin auto-install selector with `auto | off | <list>` semantics
-- [ ] Make `claude` one of the supported values in that selector
+- [x] Add `claude-hooks-template` CLI command
+- [x] Add `install-claude` CLI command
+- [x] Implement JSON merge/update logic for `~/.claude/settings.json`
+- [x] Keep install idempotent and preserve unrelated user hooks
+- [x] Design a shared tmux-plugin auto-install selector with `auto | off | <list>` semantics
+- [x] Make `claude` one of the supported values in that selector
 
 ### Phase 4: runtime attachment and fallback
 
-- [ ] Attach Claude runtime to discovered panes
-- [ ] Add preview-based waiting heuristics
-- [ ] Add command-only Claude fallback
-- [ ] Ensure mixed-agent environments still render cleanly
+- [x] Attach Claude runtime to discovered panes
+- [x] Add preview-based waiting heuristics
+- [x] Add command-only Claude fallback
+- [x] Ensure mixed-agent environments still render cleanly
 
 ### Phase 5: tests
 
 Add or extend tests for:
 
-- [ ] Claude pane detection
-- [ ] Claude hook payload classification
-- [ ] settings.json merge/install behavior
-- [ ] shared tmux auto-install selector parsing for `auto`, `off`, and explicit lists
-- [ ] state matching by target / pane id / cwd fallback
-- [ ] preview override behavior
-- [ ] CLI help / filtering for `--agent claude`
+- [x] Claude pane detection
+- [x] Claude hook payload classification
+- [x] settings.json merge/install behavior
+- [x] shared tmux auto-install selector parsing for `auto`, `off`, and explicit lists
+- [x] state matching by target / pane id / cwd fallback
+- [x] preview override behavior
+- [x] CLI help / filtering for `--agent claude`
 
 Suggested files:
 
@@ -705,12 +746,12 @@ Suggested files:
 
 ### Phase 6: documentation
 
-- [ ] Update `README.md` with Claude Code support
-- [ ] Document `install-claude`
-- [ ] Document template usage for `.claude/settings.json`
-- [ ] Document the shared tmux auto-install selector and how `claude` participates in it
-- [ ] Document limitations and fallback behavior
-- [ ] Document whether automatic install is supported or intentionally manual
+- [x] Update `README.md` with Claude Code support
+- [x] Document `install-claude`
+- [x] Document template usage for `.claude/settings.json`
+- [x] Document the shared tmux auto-install selector and how `claude` participates in it
+- [x] Document limitations and fallback behavior
+- [x] Document whether automatic install is supported or intentionally manual
 
 ### Phase 7: optional plugin packaging
 
