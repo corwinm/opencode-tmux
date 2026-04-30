@@ -9,7 +9,7 @@ It helps you:
 - show the current pane state plus a background session summary in the status line
 - use local plugin and hook state instead of relying only on sqlite or pane heuristics
 
-Today the strongest runtime support is still for `opencode`, and the project also supports `codex` and `pi` panes for discovery, switching, popup navigation, and status summaries.
+Today the strongest runtime support is still for `opencode`, and the project also supports `codex`, `pi`, and `claude` panes for discovery, switching, popup navigation, and status summaries.
 
 ## Rename status
 
@@ -72,6 +72,7 @@ Requirements:
 - `opencode` sessions must be restarted after first install so the bundled plugin is loaded
 - `codex` sessions must be restarted after first install so newly installed hooks are loaded
 - `pi` sessions must be restarted after first install so the bundled extension is loaded
+- `claude` sessions must be restarted after Claude hook installation so new hooks are loaded
 
 ## What TPM sets up
 
@@ -133,6 +134,12 @@ It also installs or updates Codex hook integration under:
 ~/.codex/hooks.json
 ```
 
+It can also install or update Claude Code hook integration under:
+
+```text
+~/.claude/settings.json
+```
+
 You can disable the automatic symlink step with:
 
 ```tmux
@@ -150,6 +157,22 @@ You can disable the automatic Codex hook setup with:
 ```tmux
 set -g @coding-agents-tmux-install-codex-hooks 'off'
 ```
+
+You can disable the automatic Claude Code hook setup with:
+
+```tmux
+set -g @coding-agents-tmux-install-claude-hooks 'off'
+```
+
+You can also control all tmux-managed installs together:
+
+```tmux
+set -g @coding-agents-tmux-auto-install 'auto'
+set -g @coding-agents-tmux-auto-install 'off'
+set -g @coding-agents-tmux-auto-install 'opencode,pi,codex,claude'
+```
+
+When `@coding-agents-tmux-auto-install` is set, it takes precedence over the individual install toggles.
 
 ## Usage
 
@@ -277,6 +300,8 @@ Available tmux options:
 - `@coding-agents-tmux-install-opencode-plugin` `on` or `off`, default `on`
 - `@coding-agents-tmux-install-pi-extension` `on` or `off`, default `on`
 - `@coding-agents-tmux-install-codex-hooks` `on` or `off`, default `on`
+- `@coding-agents-tmux-install-claude-hooks` `on` or `off`, default `off`
+- `@coding-agents-tmux-auto-install` `auto`, `off`, or a comma-separated list like `opencode,pi,codex,claude`; when set, it overrides the individual install toggles
 - `@coding-agents-tmux-provider` `auto`, `plugin`, `sqlite`, or `server`, default `plugin`
 - `@coding-agents-tmux-server-map` JSON object or JSON file path for explicit server endpoints
 - `@coding-agents-tmux-popup-filter` one of `all`, `busy`, `waiting`, `running`, `active`
@@ -318,9 +343,9 @@ set -g @coding-agents-tmux-provider 'plugin'
 
 ## Pi
 
-`pi` panes are detected from the live tmux pane command and common title patterns, so they show up in `list`, `switch`, `popup`, and `status` alongside `opencode` and `codex` panes.
+`pi` panes are detected from the live tmux pane command and common title patterns, so they show up in `list`, `switch`, `popup`, and `status` alongside `opencode`, `codex`, and `claude` panes.
 
-Use `--agent opencode`, `--agent codex`, `--agent pi`, or `--agent all` on `list`, `switch`, `popup`, `popup-ui`, and `status` when you want to narrow mixed tmux environments.
+Use `--agent opencode`, `--agent codex`, `--agent pi`, `--agent claude`, or `--agent all` on `list`, `switch`, `popup`, `popup-ui`, and `status` when you want to narrow mixed tmux environments.
 
 For the best Pi runtime fidelity, let the tmux plugin install the bundled Pi extension automatically. It is linked into:
 
@@ -345,9 +370,9 @@ After first install or update, restart Pi sessions in tmux so they load the bund
 
 ## Codex
 
-`codex` panes are detected from the live tmux pane command, so they show up in `list`, `switch`, `popup`, and `status` alongside `opencode` and `pi` panes.
+`codex` panes are detected from the live tmux pane command, so they show up in `list`, `switch`, `popup`, and `status` alongside `opencode`, `pi`, and `claude` panes.
 
-Use `--agent opencode`, `--agent codex`, `--agent pi`, or `--agent all` on `list`, `switch`, `popup`, `popup-ui`, and `status` when you want to narrow mixed tmux environments.
+Use `--agent opencode`, `--agent codex`, `--agent pi`, `--agent claude`, or `--agent all` on `list`, `switch`, `popup`, `popup-ui`, and `status` when you want to narrow mixed tmux environments.
 
 Default Codex runtime support is intentionally coarse:
 
@@ -373,6 +398,45 @@ mkdir -p .codex
 
 With hooks enabled, `coding-agents-tmux` can mark Codex panes as `idle` or `waiting-input` between turns instead of showing every Codex pane as continuously `running`.
 
+## Claude Code
+
+`claude` panes are detected from the live tmux pane command and common title patterns, so they show up in `list`, `switch`, `popup`, and `status` alongside `opencode`, `codex`, and `pi` panes.
+
+Default Claude Code runtime support is intentionally coarse:
+
+- if a tmux pane is running a `claude` process, it is classified as `running`
+- waiting, question, and idle distinctions become higher fidelity when Claude hooks are installed
+
+To enable higher-fidelity Claude Code state with hooks:
+
+1. Install or update the global Claude hook config manually:
+
+```bash
+./bin/coding-agents-tmux install-claude
+```
+
+2. Or let the tmux plugin manage it by setting either:
+
+```tmux
+set -g @coding-agents-tmux-install-claude-hooks 'on'
+```
+
+or the shared selector:
+
+```tmux
+set -g @coding-agents-tmux-auto-install 'opencode,pi,codex,claude'
+```
+
+3. Optionally inspect the managed hook template before merging it into project or user Claude settings:
+
+```bash
+./bin/coding-agents-tmux claude-hooks-template
+```
+
+4. Restart `claude` sessions in tmux so they begin publishing hook-backed state.
+
+With hooks enabled, `coding-agents-tmux` can mark Claude panes as `idle`, `waiting-question`, or `waiting-input` between turns instead of showing every Claude pane as continuously `running`.
+
 ## Troubleshooting
 
 - `prefix + O` or `prefix + P` does nothing: make sure `node` and `npm` are installed and reload tmux
@@ -381,6 +445,7 @@ With hooks enabled, `coding-agents-tmux` can mark Codex panes as `idle` or `wait
 - waiting detection seems wrong: use the `plugin` provider and confirm the bundled plugin symlink exists at `~/.config/opencode/plugins/coding-agents-tmux.ts`
 - Pi still looks busy or unknown: confirm the bundled extension exists at `~/.pi/agent/extensions/coding-agents-tmux/index.ts` and restart the Pi session so it loads the extension
 - Codex still always looks busy: confirm `~/.codex/config.toml` has `codex_hooks = true`, `~/.codex/hooks.json` exists, and restart the Codex session
+- Claude still always looks busy: confirm `~/.claude/settings.json` contains the managed `claude-hook-state` hook command and restart the Claude Code session
 - status looks stale with `sqlite` or `server`: set `@coding-agents-tmux-status-interval` to a positive value because event-driven refreshes are centered on the bundled plugin provider
 - TPM install changed but tmux still looks old: run `prefix + I` or `tmux source-file ~/.tmux.conf`
 
@@ -410,6 +475,7 @@ Useful commands:
 ./bin/coding-agents-tmux list --provider plugin
 ./bin/coding-agents-tmux list --agent codex
 ./bin/coding-agents-tmux list --agent pi
+./bin/coding-agents-tmux list --agent claude
 ./bin/coding-agents-tmux list --provider plugin --waiting
 ./bin/coding-agents-tmux inspect <target> --provider plugin
 ./bin/coding-agents-tmux status --provider plugin --style tmux

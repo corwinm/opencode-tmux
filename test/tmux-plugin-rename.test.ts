@@ -178,3 +178,63 @@ exit 1
     restoreEnv();
   }
 });
+
+test("coding-agents-tmux.tmux honors @coding-agents-tmux-auto-install lists including claude", async () => {
+  const fakeTmux = installFakeTmux(`
+log_path='__LOG_PATH__'
+option="\${!#}"
+
+case "$1" in
+show-option)
+  case "$option" in
+    @coding-agents-tmux-status)
+      printf 'off\n'
+      ;;
+    @coding-agents-tmux-auto-install)
+      printf 'pi,claude\n'
+      ;;
+  esac
+  exit 0
+  ;;
+bind-key|set-option|set-hook|refresh-client|display-message|unbind-key)
+  printf '%s\n' "$*" >> "$log_path"
+  exit 0
+  ;;
+esac
+
+printf 'unexpected args: %s\n' "$*" >&2
+exit 1
+`);
+  const home = mkdtempSync(join(tmpdir(), "coding-agents-tmux-home-"));
+  const configHome = join(home, ".config-home");
+  const piHome = join(home, ".pi-home");
+  const codexHome = join(home, ".codex-home");
+  const claudeHome = join(home, ".claude-home");
+  installFakeNpm(fakeTmux.pathEntry);
+  const restoreEnv = setEnv({
+    HOME: home,
+    PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}`,
+    XDG_CONFIG_HOME: configHome,
+    PI_CODING_AGENT_DIR: piHome,
+    CODEX_HOME: codexHome,
+    CLAUDE_HOME: claudeHome,
+  });
+
+  try {
+    const result = await runCommand([join(process.cwd(), "coding-agents-tmux.tmux")]);
+    const newPluginPath = join(configHome, "opencode", "plugins", "coding-agents-tmux.ts");
+    const newPiExtensionPath = join(piHome, "extensions", "coding-agents-tmux", "index.ts");
+    const claudeSettingsPath = join(claudeHome, "settings.json");
+    const codexHooksPath = join(codexHome, "hooks.json");
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.stderrText.trim(), "");
+    assert.equal(existsSync(newPluginPath), false);
+    assert.ok(existsSync(newPiExtensionPath));
+    assert.ok(existsSync(claudeSettingsPath));
+    assert.equal(existsSync(codexHooksPath), false);
+    assert.match(readFileSync(claudeSettingsPath, "utf8"), /claude-hook-state/);
+  } finally {
+    restoreEnv();
+  }
+});
