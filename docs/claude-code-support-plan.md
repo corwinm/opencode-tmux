@@ -75,6 +75,8 @@ Still intentionally left for later:
 - validating a `claude --plugin-dir` development/distribution flow
 - deciding whether plugin packaging should become a supported user-facing install path
 
+These are packaging and distribution follow-ups only. They are **not required** for the shipped Claude tmux functionality in this repo, including pane detection, switching, popup navigation, status summaries, and hook-backed runtime state.
+
 ## Research summary
 
 ### 1. Claude Code exposes lifecycle hooks directly
@@ -754,6 +756,8 @@ Suggested files:
 - [x] Document whether automatic install is supported or intentionally manual
 
 ### Phase 7: optional plugin packaging
+
+This phase is explicitly optional. It is about Claude Code plugin packaging and distribution, not core tmux support. Claude pane detection, switching, popup navigation, status summaries, and hook-backed runtime state do **not** depend on this phase.
 
 - [ ] Prototype a Claude Code plugin directory in this repo
 - [ ] Mirror the standalone managed hooks into `hooks/hooks.json`
