@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -116,10 +123,8 @@ function countChoiceLines(message: string): number {
   return message
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter(
-      (line) =>
-        /^(?:[›>]\s*)?\d+\.\s+\S/.test(line) || /^(?:[›>]\s*)?[-*]\s+\S/.test(line),
-    ).length;
+    .filter((line) => /^(?:[›>]\s*)?\d+\.\s+\S/.test(line) || /^(?:[›>]\s*)?[-*]\s+\S/.test(line))
+    .length;
 }
 
 function classifyWaitingMessage(message: string | null | undefined): RuntimeStatus | null {
@@ -257,9 +262,11 @@ function classifyAskUserQuestion(toolInput: unknown): {
   detail: string;
   status: RuntimeStatus;
 } {
-  const questions = isRecord(toolInput) && Array.isArray(toolInput.questions) ? toolInput.questions : [];
+  const questions =
+    isRecord(toolInput) && Array.isArray(toolInput.questions) ? toolInput.questions : [];
   const hasOptions = questions.some(
-    (question) => isRecord(question) && Array.isArray(question.options) && question.options.length > 0,
+    (question) =>
+      isRecord(question) && Array.isArray(question.options) && question.options.length > 0,
   );
 
   if (hasOptions) {
@@ -609,7 +616,10 @@ function getExactClaudeState(index: ClaudeStateIndex, pane: TmuxPane): ClaudeSta
   return null;
 }
 
-function getDirectoryFallbackClaudeState(index: ClaudeStateIndex, pane: TmuxPane): ClaudeStateFile | null {
+function getDirectoryFallbackClaudeState(
+  index: ClaudeStateIndex,
+  pane: TmuxPane,
+): ClaudeStateFile | null {
   const states = index.statesByDirectory.get(pane.currentPath) ?? [];
 
   if (states.length !== 1) {
@@ -619,7 +629,9 @@ function getDirectoryFallbackClaudeState(index: ClaudeStateIndex, pane: TmuxPane
   return states[0] ?? null;
 }
 
-function classifyClaudePreview(lines: string[]): Pick<RuntimeInfo, "activity" | "detail" | "status"> | null {
+function classifyClaudePreview(
+  lines: string[],
+): Pick<RuntimeInfo, "activity" | "detail" | "status"> | null {
   const nonEmptyLines = lines.map((line) => line.trim()).filter(Boolean);
   const recentLines = nonEmptyLines.slice(-8);
   const recentText = recentLines.join("\n");

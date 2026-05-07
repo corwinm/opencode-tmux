@@ -253,9 +253,21 @@ test("Claude runtime matches panes by target, pane id, and unique cwd fallback",
 
   try {
     const summaries = await attachRuntimeToPanes([
-      createDiscoveredClaudePane({ target: "work:1.0", paneId: "%1", currentPath: "/tmp/claude-a" }),
-      createDiscoveredClaudePane({ target: "work:1.1", paneId: "%9", currentPath: "/tmp/claude-b" }),
-      createDiscoveredClaudePane({ target: "work:1.2", paneId: "%3", currentPath: "/tmp/claude-c" }),
+      createDiscoveredClaudePane({
+        target: "work:1.0",
+        paneId: "%1",
+        currentPath: "/tmp/claude-a",
+      }),
+      createDiscoveredClaudePane({
+        target: "work:1.1",
+        paneId: "%9",
+        currentPath: "/tmp/claude-b",
+      }),
+      createDiscoveredClaudePane({
+        target: "work:1.2",
+        paneId: "%3",
+        currentPath: "/tmp/claude-c",
+      }),
     ]);
 
     assert.equal(summaries[0]?.runtime.status, "running");
@@ -287,12 +299,18 @@ exit 1
 `);
   const restoreEnv = setEnv({
     PATH: `${fakeTmux.pathEntry}:${process.env.PATH ?? ""}`,
-    CODING_AGENTS_TMUX_CLAUDE_STATE_DIR: mkdtempSync(join(tmpdir(), "coding-agents-tmux-empty-claude-state-")),
+    CODING_AGENTS_TMUX_CLAUDE_STATE_DIR: mkdtempSync(
+      join(tmpdir(), "coding-agents-tmux-empty-claude-state-"),
+    ),
   });
 
   try {
     const previewSummaries = await attachRuntimeToPanes([
-      createDiscoveredClaudePane({ target: "work:1.0", paneId: "%1", currentPath: "/tmp/claude-project" }),
+      createDiscoveredClaudePane({
+        target: "work:1.0",
+        paneId: "%1",
+        currentPath: "/tmp/claude-project",
+      }),
     ]);
 
     assert.equal(previewSummaries[0]?.runtime.status, "waiting-question");
@@ -303,7 +321,9 @@ exit 1
   }
 
   const restoreEmptyEnv = setEnv({
-    CODING_AGENTS_TMUX_CLAUDE_STATE_DIR: mkdtempSync(join(tmpdir(), "coding-agents-tmux-empty-claude-state-")),
+    CODING_AGENTS_TMUX_CLAUDE_STATE_DIR: mkdtempSync(
+      join(tmpdir(), "coding-agents-tmux-empty-claude-state-"),
+    ),
   });
 
   try {
