@@ -98,6 +98,7 @@ function pickDetectedAgent(
 export function detectAgentPane(pane: TmuxPane): PaneDetection {
   const title = pane.paneTitle.trim();
   const lowerTitle = title.toLowerCase();
+  const normalizedLowerTitle = lowerTitle.replace(/^[^a-z0-9]+/, "");
   const path = pane.currentPath.toLowerCase();
   const command = pane.currentCommand.toLowerCase();
   const opencodeReasons: string[] = [];
@@ -132,7 +133,8 @@ export function detectAgentPane(pane: TmuxPane): PaneDetection {
 
   const hasPiTitleHint =
     lowerTitle === "pi" || lowerTitle.startsWith("pi - ") || title.startsWith("π - ");
-  const hasClaudeTitleHint = lowerTitle === "claude" || lowerTitle.startsWith("claude code");
+  const hasClaudeTitleHint =
+    normalizedLowerTitle === "claude" || normalizedLowerTitle.startsWith("claude code");
 
   if (hasPiTitleHint) {
     piReasons.push("title:Pi");
@@ -179,11 +181,15 @@ export function detectAgentPane(pane: TmuxPane): PaneDetection {
     });
   }
 
-  if (claudeReasons.some((reason) => reason.startsWith("command:"))) {
+  if (claudeReasons.length > 0) {
     candidates.push({
       agent: "claude",
       reasons: claudeReasons,
-      score: hasClaudeTitleHint ? 5 : 4,
+      score: claudeReasons.some((reason) => reason.startsWith("command:"))
+        ? hasClaudeTitleHint
+          ? 5
+          : 4
+        : 4,
     });
   }
 

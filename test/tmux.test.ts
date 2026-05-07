@@ -137,6 +137,15 @@ test("detectAgentPane recognizes OpenCode, Codex, Pi, and no-signal panes", () =
     },
   );
 
+  assert.deepEqual(
+    detectAgentPane(createPane({ paneTitle: "✳ Claude Code", currentCommand: "2.1.132" })),
+    {
+      agent: "claude",
+      confidence: "high",
+      reasons: ["title:Claude"],
+    },
+  );
+
   assert.deepEqual(detectAgentPane(createPane({ paneTitle: "π - work", currentCommand: "bash" })), {
     agent: null,
     confidence: "low",

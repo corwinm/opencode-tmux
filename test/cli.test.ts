@@ -741,7 +741,7 @@ if [ "$1" = "list-panes" ]; then
   printf 'work\t1\t1\t%%2\tOpenCode\topencode\t/tmp/project-b\t0\t/dev/ttys002\n'
   printf 'work\t1\t2\t%%4\tShell\tcodex\t/tmp/codex-project\t0\t/dev/ttys004\n'
   printf 'work\t1\t5\t%%5\tπ - pi-project\tpi\t/tmp/pi-project\t0\t/dev/ttys005\n'
-  printf 'work\t1\t6\t%%6\tClaude Code\tclaude\t/tmp/claude-project\t0\t/dev/ttys006\n'
+  printf 'work\t1\t6\t%%6\t✳ Claude Code\t2.1.132\t/tmp/claude-project\t0\t/dev/ttys006\n'
   printf 'work\t2\t0\t%%3\tShell\tbash\t/tmp/other\t0\t/dev/ttys003\n'
   exit 0
 fi
@@ -817,7 +817,7 @@ exit 1
     assert.equal(claudeResult.exitCode, 0);
     assert.equal(
       claudeResult.stdoutText.trim(),
-      "work:1.6\tbusy\trunning\tclaude-command\t0\t(unmatched)\tClaude Code\t/tmp/claude-project",
+      "work:1.6\tbusy\trunning\tclaude-command\t0\t(unmatched)\t✳ Claude Code\t/tmp/claude-project",
     );
   } finally {
     restoreEnv();
