@@ -235,6 +235,53 @@ normalize_toggle() {
   esac
 }
 
+tmux_option_alias_is_set() {
+  local preferred_option="$1"
+  local legacy_option="$2"
+  local value
+
+  value="$(tmux show-option -gqv "$preferred_option")"
+  if [ -n "$value" ]; then
+    return 0
+  fi
+
+  value="$(tmux show-option -gqv "$legacy_option")"
+  [ -n "$value" ]
+}
+
+normalize_auto_install_value() {
+  local value lowered
+  value="${1// /}"
+  lowered="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+
+  case "$lowered" in
+    auto|all)
+      printf '%s' 'auto'
+      ;;
+    off|none|disabled|false|0)
+      printf '%s' 'off'
+      ;;
+    *)
+      printf '%s' "$lowered"
+      ;;
+  esac
+}
+
+auto_install_includes() {
+  local csv="$1"
+  local wanted="$2"
+  local item
+
+  IFS=',' read -r -a items <<< "$csv"
+  for item in "${items[@]}"; do
+    if [ "$item" = "$wanted" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 unbind_key_if_set() {
   local key="$1"
 
@@ -371,6 +418,12 @@ install_codex_hooks() {
   fi
 }
 
+install_claude_hooks() {
+  if ! "$CURRENT_DIR/bin/coding-agents-tmux" install-claude >/dev/null 2>&1; then
+    tmux display-message "coding-agents-tmux: failed to install Claude Code hook configuration"
+  fi
+}
+
 install_pi_extension() {
   local extension_source pi_dir extension_dir extension_target legacy_extension_dir legacy_extension_target existing_target installed_changed
 
@@ -405,7 +458,7 @@ install_pi_extension() {
 }
 
 main() {
-  local menu_key popup_key waiting_menu_key waiting_popup_key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option status_interval status_mode install_plugin install_codex install_pi status_text_segment status_inline_segment status_tone_segment status_refresh_command
+  local menu_key popup_key waiting_menu_key waiting_popup_key provider server_map popup_filter popup_width popup_height popup_title status_enabled status_style status_position status_option status_interval status_mode install_plugin install_codex install_pi install_claude auto_install_value status_text_segment status_inline_segment status_tone_segment status_refresh_command
   local status_prefix status_color_neutral status_color_busy status_color_waiting status_color_idle status_color_unknown
   local previous_status_segment previous_status_option previous_menu_key previous_popup_key previous_waiting_menu_key previous_waiting_popup_key
   menu_key="$(normalize_binding_key "$(get_tmux_option_alias '@coding-agents-tmux-menu-key' '@opencode-tmux-menu-key' 'O')")"
@@ -418,9 +471,51 @@ main() {
   popup_width="$(get_tmux_option_alias '@coding-agents-tmux-popup-width' '@opencode-tmux-popup-width' '100%')"
   popup_height="$(get_tmux_option_alias '@coding-agents-tmux-popup-height' '@opencode-tmux-popup-height' '100%')"
   popup_title="$(get_tmux_option_alias '@coding-agents-tmux-popup-title' '@opencode-tmux-popup-title' 'Coding Agent Sessions')"
-  install_plugin="$(normalize_toggle "$(get_tmux_option_alias '@coding-agents-tmux-install-opencode-plugin' '@opencode-tmux-install-opencode-plugin' 'on')")"
-  install_codex="$(normalize_toggle "$(get_tmux_option_alias '@coding-agents-tmux-install-codex-hooks' '@opencode-tmux-install-codex-hooks' 'on')")"
-  install_pi="$(normalize_toggle "$(get_tmux_option_alias '@coding-agents-tmux-install-pi-extension' '@opencode-tmux-install-pi-extension' 'on')")"
+  if tmux_option_alias_is_set '@coding-agents-tmux-auto-install' '@opencode-tmux-auto-install'; then
+    auto_install_value="$(normalize_auto_install_value "$(get_tmux_option_alias '@coding-agents-tmux-auto-install' '@opencode-tmux-auto-install' '')")"
+
+    case "$auto_install_value" in
+      auto)
+        install_plugin='on'
+        install_codex='on'
+        install_pi='on'
+        install_claude='on'
+        ;;
+      off|"")
+        install_plugin='off'
+        install_codex='off'
+        install_pi='off'
+        install_claude='off'
+        ;;
+      *)
+        install_plugin='off'
+        install_codex='off'
+        install_pi='off'
+        install_claude='off'
+
+        if auto_install_includes "$auto_install_value" 'opencode'; then
+          install_plugin='on'
+        fi
+
+        if auto_install_includes "$auto_install_value" 'codex'; then
+          install_codex='on'
+        fi
+
+        if auto_install_includes "$auto_install_value" 'pi'; then
+          install_pi='on'
+        fi
+
+        if auto_install_includes "$auto_install_value" 'claude'; then
+          install_claude='on'
+        fi
+        ;;
+    esac
+  else
+    install_plugin="$(normalize_toggle "$(get_tmux_option_alias '@coding-agents-tmux-install-opencode-plugin' '@opencode-tmux-install-opencode-plugin' 'on')")"
+    install_codex="$(normalize_toggle "$(get_tmux_option_alias '@coding-agents-tmux-install-codex-hooks' '@opencode-tmux-install-codex-hooks' 'on')")"
+    install_pi="$(normalize_toggle "$(get_tmux_option_alias '@coding-agents-tmux-install-pi-extension' '@opencode-tmux-install-pi-extension' 'on')")"
+    install_claude="$(normalize_toggle "$(get_tmux_option_alias '@coding-agents-tmux-install-claude-hooks' '@opencode-tmux-install-claude-hooks' 'off')")"
+  fi
   status_enabled="$(get_tmux_option_alias '@coding-agents-tmux-status' '@opencode-tmux-status' 'on')"
   status_style="$(get_tmux_option_alias '@coding-agents-tmux-status-style' '@opencode-tmux-status-style' 'tmux')"
   status_position="$(get_tmux_option_alias '@coding-agents-tmux-status-position' '@opencode-tmux-status-position' 'right')"
@@ -459,6 +554,10 @@ main() {
 
   if [ "$install_pi" = "on" ]; then
     install_pi_extension
+  fi
+
+  if [ "$install_claude" = "on" ]; then
+    install_claude_hooks
   fi
 
   local popup_filter_arg=""

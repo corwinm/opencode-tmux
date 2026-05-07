@@ -312,7 +312,7 @@ test("renderCompactPaneList falls back to unmatched and untitled labels", () => 
   );
 });
 
-test("renderPaneTable and renderCompactPaneList handle mixed OpenCode, Codex, and Pi panes", () => {
+test("renderPaneTable and renderCompactPaneList handle mixed OpenCode, Codex, Pi, and Claude panes", () => {
   const opencodePane = createSummary("idle", {
     pane: createPane({ target: "work:1.0" }),
   });
@@ -344,14 +344,30 @@ test("renderPaneTable and renderCompactPaneList handle mixed OpenCode, Codex, an
       session: null,
     }),
   });
+  const claudePane = createSummary("running", {
+    pane: createPane({
+      target: "work:1.3",
+      paneIndex: 3,
+      paneTitle: "Claude Code",
+      currentCommand: "claude",
+    }),
+    detection: { agent: "claude", confidence: "high", reasons: ["title:Claude", "command:claude"] },
+    runtime: createRuntime("running", {
+      source: "claude-command",
+      match: { strategy: "exact", provider: "claude", heuristic: false },
+      session: null,
+    }),
+  });
 
-  const tableOutput = renderPaneTable([opencodePane, codexPane, piPane]);
-  const compactOutput = renderCompactPaneList([opencodePane, codexPane, piPane]);
+  const tableOutput = renderPaneTable([opencodePane, codexPane, piPane, claudePane]);
+  const compactOutput = renderCompactPaneList([opencodePane, codexPane, piPane, claudePane]);
 
   assert.match(tableOutput, /opencode/);
   assert.match(tableOutput, /codex/);
   assert.match(tableOutput, /pi/);
+  assert.match(tableOutput, /claude/);
   assert.match(compactOutput, /work:1\.2\tbusy\trunning\tpi-command/);
+  assert.match(compactOutput, /work:1\.3\tbusy\trunning\tclaude-command/);
 });
 
 test("renderInspectResult includes pane, detection, and session details", () => {

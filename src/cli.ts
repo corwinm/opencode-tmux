@@ -17,6 +17,11 @@ import {
   renderSwitchChoices,
 } from "./cli/render.ts";
 import {
+  buildClaudeHooksTemplate,
+  installClaudeIntegration,
+  persistClaudeHookState,
+} from "./core/claude.ts";
+import {
   buildCodexHooksTemplate,
   installCodexIntegration,
   persistCodexHookState,
@@ -81,7 +86,7 @@ interface StatusOptions extends RuntimeProviderOptions {
 }
 
 interface TmuxConfigOptions extends RuntimeProviderOptions {
-  agent?: "all" | "opencode" | "codex" | "pi";
+  agent?: "all" | "opencode" | "codex" | "pi" | "claude";
   menuKey?: string;
   popupKey?: string;
   waitingMenuKey?: string;
@@ -94,6 +99,8 @@ interface InstallTmuxOptions extends TmuxConfigOptions {
 }
 
 interface InstallCodexOptions {}
+
+interface InstallClaudeOptions {}
 
 function getWindowKey(sessionName: string, windowIndex: number): string {
   return `${sessionName}:${windowIndex}`;
@@ -284,7 +291,13 @@ export function filterPaneSummaries(
 ): PaneRuntimeSummary[] {
   const agent = options.agent ?? "all";
 
-  if (agent !== "all" && agent !== "opencode" && agent !== "codex" && agent !== "pi") {
+  if (
+    agent !== "all" &&
+    agent !== "opencode" &&
+    agent !== "codex" &&
+    agent !== "pi" &&
+    agent !== "claude"
+  ) {
     throw new Error(`Invalid agent filter: ${agent}`);
   }
 
@@ -567,6 +580,27 @@ async function runInstallCodexCommand(_options: InstallCodexOptions): Promise<vo
   console.log("Restart Codex sessions so new hooks are loaded");
 }
 
+async function runClaudeHooksTemplateCommand(): Promise<void> {
+  console.log(buildClaudeHooksTemplate(buildSelfCommand(["claude-hook-state"])));
+}
+
+async function runClaudeHookStateCommand(): Promise<void> {
+  const rawInput = await readStdinText();
+
+  if (!rawInput.trim()) {
+    throw new Error("claude-hook-state requires a JSON payload on stdin");
+  }
+
+  await persistClaudeHookState(rawInput);
+}
+
+async function runInstallClaudeCommand(_options: InstallClaudeOptions): Promise<void> {
+  const result = installClaudeIntegration(buildSelfCommand(["claude-hook-state"]));
+
+  console.log(`Updated ${result.settingsPath}`);
+  console.log("Restart Claude Code sessions so new hooks are loaded");
+}
+
 interface StatusOutputContext {
   currentTarget?: PaneTarget;
   tmuxAvailable: boolean;
@@ -792,7 +826,7 @@ async function main(): Promise<void> {
     .description("List likely coding agent tmux panes")
     .option("--compact", "Print tab-separated tmux-friendly output")
     .option("--json", "Print machine-readable JSON")
-    .option("--agent <agent>", "Limit panes to all, opencode, codex, or pi", "all")
+    .option("--agent <agent>", "Limit panes to all, opencode, codex, pi, or claude", "all")
     .option(
       "--provider <provider>",
       "Runtime provider: auto, plugin, sqlite, or server",
@@ -833,7 +867,7 @@ async function main(): Promise<void> {
     .command("switch")
     .description("Switch tmux to one discovered coding agent pane")
     .argument("[target]", "Pane target in session:window.pane format")
-    .option("--agent <agent>", "Limit panes to all, opencode, codex, or pi", "all")
+    .option("--agent <agent>", "Limit panes to all, opencode, codex, pi, or claude", "all")
     .option(
       "--provider <provider>",
       "Runtime provider: auto, plugin, sqlite, or server",
@@ -875,9 +909,24 @@ async function main(): Promise<void> {
     .action(runInstallCodexCommand);
 
   program
+    .command("claude-hooks-template")
+    .description("Print a Claude Code hooks template for higher-fidelity Claude tmux state")
+    .action(runClaudeHooksTemplateCommand);
+
+  program
+    .command("claude-hook-state")
+    .description("Ingest one Claude Code hook payload from stdin and update local runtime state")
+    .action(runClaudeHookStateCommand);
+
+  program
+    .command("install-claude")
+    .description("Install or update Claude Code hook configuration under ~/.claude")
+    .action(runInstallClaudeCommand);
+
+  program
     .command("popup")
     .description("Open a tmux popup chooser for switching between discovered coding agent panes")
-    .option("--agent <agent>", "Limit panes to all, opencode, codex, or pi", "all")
+    .option("--agent <agent>", "Limit panes to all, opencode, codex, pi, or claude", "all")
     .option(
       "--provider <provider>",
       "Runtime provider: auto, plugin, sqlite, or server",
@@ -900,7 +949,7 @@ async function main(): Promise<void> {
   program
     .command("popup-ui")
     .description("Run the interactive popup selector in the current terminal")
-    .option("--agent <agent>", "Limit panes to all, opencode, codex, or pi", "all")
+    .option("--agent <agent>", "Limit panes to all, opencode, codex, pi, or claude", "all")
     .option(
       "--provider <provider>",
       "Runtime provider: auto, plugin, sqlite, or server",
@@ -920,7 +969,7 @@ async function main(): Promise<void> {
     .command("status")
     .description("Print a tmux-friendly status summary")
     .option("--json", "Print machine-readable JSON")
-    .option("--agent <agent>", "Limit panes to all, opencode, codex, or pi", "all")
+    .option("--agent <agent>", "Limit panes to all, opencode, codex, pi, or claude", "all")
     .option(
       "--summary",
       "Summarize all discovered coding agent panes instead of the current tmux pane",
@@ -941,7 +990,7 @@ async function main(): Promise<void> {
   program
     .command("tmux-config")
     .description("Print a tmux config snippet for popup and status-line integration")
-    .option("--agent <agent>", "Limit panes to all, opencode, codex, or pi", "all")
+    .option("--agent <agent>", "Limit panes to all, opencode, codex, pi, or claude", "all")
     .option(
       "--provider <provider>",
       "Runtime provider: auto, plugin, sqlite, or server",
@@ -969,7 +1018,7 @@ async function main(): Promise<void> {
   program
     .command("install-tmux")
     .description("Install or update a coding-agents-tmux snippet in a tmux config file")
-    .option("--agent <agent>", "Limit panes to all, opencode, codex, or pi", "all")
+    .option("--agent <agent>", "Limit panes to all, opencode, codex, pi, or claude", "all")
     .option(
       "--provider <provider>",
       "Runtime provider: auto, plugin, sqlite, or server",

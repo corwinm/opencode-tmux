@@ -175,6 +175,14 @@ test("filterPaneSummaries applies agent, active, waiting, busy, and running filt
         match: { strategy: "exact", provider: "pi", heuristic: false },
       }),
     }),
+    createSummary("running", {
+      pane: createPane({ target: "work:1.6", paneIndex: 6, currentCommand: "claude" }),
+      detection: { agent: "claude", confidence: "medium", reasons: ["command:claude"] },
+      runtime: createRuntime("running", {
+        source: "claude-command",
+        match: { strategy: "exact", provider: "claude", heuristic: false },
+      }),
+    }),
   ];
 
   assert.deepEqual(
@@ -187,7 +195,7 @@ test("filterPaneSummaries applies agent, active, waiting, busy, and running filt
   );
   assert.deepEqual(
     filterPaneSummaries(panes, { busy: true }).map((entry) => entry.pane.target),
-    ["work:1.1", "work:1.2", "work:1.3", "work:1.4"],
+    ["work:1.1", "work:1.2", "work:1.3", "work:1.4", "work:1.6"],
   );
   assert.deepEqual(
     filterPaneSummaries(panes, { waiting: true, busy: true }).map((entry) => entry.pane.target),
@@ -195,7 +203,7 @@ test("filterPaneSummaries applies agent, active, waiting, busy, and running filt
   );
   assert.deepEqual(
     filterPaneSummaries(panes, { running: true }).map((entry) => entry.pane.target),
-    ["work:1.3", "work:1.4"],
+    ["work:1.3", "work:1.4", "work:1.6"],
   );
   assert.deepEqual(
     filterPaneSummaries(panes, { agent: "codex" }).map((entry) => entry.pane.target),
@@ -210,6 +218,10 @@ test("filterPaneSummaries applies agent, active, waiting, busy, and running filt
   assert.deepEqual(
     filterPaneSummaries(panes, { agent: "pi" }).map((entry) => entry.pane.target),
     ["work:1.5"],
+  );
+  assert.deepEqual(
+    filterPaneSummaries(panes, { agent: "claude" }).map((entry) => entry.pane.target),
+    ["work:1.6"],
   );
 });
 
@@ -417,6 +429,25 @@ test("CLI install-codex writes Codex config and hooks files", async () => {
     assert.match(config, /codex_hooks = true/);
     assert.match(hooks, /codex-hook-state/);
     assert.match(hooks, /bin\/coding-agents-tmux/);
+  } finally {
+    restoreEnv();
+  }
+});
+
+test("CLI install-claude writes Claude settings hooks", async () => {
+  const claudeHome = mkdtempSync(join(tmpdir(), "coding-agents-tmux-claude-home-"));
+  const restoreEnv = setEnv({ CLAUDE_HOME: claudeHome });
+
+  try {
+    const result = await runCommand([BIN_PATH, "install-claude"]);
+    const settingsPath = join(claudeHome, "settings.json");
+    const settings = readFileSync(settingsPath, "utf8");
+
+    assert.equal(result.exitCode, 0);
+    assert.match(result.stdoutText, /Updated .*settings\.json/);
+    assert.match(settings, /claude-hook-state/);
+    assert.match(settings, /SessionStart/);
+    assert.match(settings, /SessionEnd/);
   } finally {
     restoreEnv();
   }
@@ -694,6 +725,15 @@ test("CLI codex-hooks-template prints a hooks.json scaffold", async () => {
   assert.match(result.stdoutText, /codex-hook-state/);
 });
 
+test("CLI claude-hooks-template prints a hooks scaffold", async () => {
+  const result = await runCommand([BIN_PATH, "claude-hooks-template"]);
+
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdoutText, /"SessionStart"/);
+  assert.match(result.stdoutText, /"SessionEnd"/);
+  assert.match(result.stdoutText, /claude-hook-state/);
+});
+
 test("CLI list supports compact and json output with runtime filters", async () => {
   const fakeTmux = installFakeTmux(`
 if [ "$1" = "list-panes" ]; then
@@ -701,6 +741,7 @@ if [ "$1" = "list-panes" ]; then
   printf 'work\t1\t1\t%%2\tOpenCode\topencode\t/tmp/project-b\t0\t/dev/ttys002\n'
   printf 'work\t1\t2\t%%4\tShell\tcodex\t/tmp/codex-project\t0\t/dev/ttys004\n'
   printf 'work\t1\t5\t%%5\tπ - pi-project\tpi\t/tmp/pi-project\t0\t/dev/ttys005\n'
+  printf 'work\t1\t6\t%%6\t✳ Claude Code\t2.1.132\t/tmp/claude-project\t0\t/dev/ttys006\n'
   printf 'work\t2\t0\t%%3\tShell\tbash\t/tmp/other\t0\t/dev/ttys003\n'
   exit 0
 fi
@@ -749,6 +790,7 @@ exit 1
     ]);
     const codexResult = await runCommand([BIN_PATH, "list", "--compact", "--agent", "codex"]);
     const piResult = await runCommand([BIN_PATH, "list", "--compact", "--agent", "pi"]);
+    const claudeResult = await runCommand([BIN_PATH, "list", "--compact", "--agent", "claude"]);
 
     assert.equal(compactResult.exitCode, 0);
     assert.equal(
@@ -760,7 +802,7 @@ exit 1
       JSON.parse(jsonResult.stdoutText).map(
         (entry: { pane: { target: string } }) => entry.pane.target,
       ),
-      ["work:1.1", "work:1.2", "work:1.5"],
+      ["work:1.1", "work:1.2", "work:1.5", "work:1.6"],
     );
     assert.equal(codexResult.exitCode, 0);
     assert.equal(
@@ -771,6 +813,11 @@ exit 1
     assert.equal(
       piResult.stdoutText.trim(),
       "work:1.5\tbusy\trunning\tpi-command\t0\t(unmatched)\tπ - pi-project\t/tmp/pi-project",
+    );
+    assert.equal(claudeResult.exitCode, 0);
+    assert.equal(
+      claudeResult.stdoutText.trim(),
+      "work:1.6\tbusy\trunning\tclaude-command\t0\t(unmatched)\t✳ Claude Code\t/tmp/claude-project",
     );
   } finally {
     restoreEnv();
