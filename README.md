@@ -34,6 +34,7 @@ Recommended settings:
 
 ```tmux
 set -g @coding-agents-tmux-provider 'plugin'
+set -g @coding-agents-tmux-auto-install 'opencode,pi,codex,claude'
 set -g @coding-agents-tmux-menu-key 'O'
 set -g @coding-agents-tmux-popup-key 'P'
 set -g @coding-agents-tmux-waiting-menu-key 'W'
@@ -44,7 +45,7 @@ set -g @coding-agents-tmux-status-position 'right'
 set -g @coding-agents-tmux-status-interval '0'
 ```
 
-Those defaults favor the bundled plugin provider and event-driven status redraws so tmux stops polling Node in the background.
+Those settings favor the bundled plugin provider, explicitly enable tmux-managed installs for the bundled OpenCode plugin plus the Pi extension and Codex/Claude hooks, and use event-driven status redraws so tmux stops polling Node in the background.
 
 To match your tmux theme, you can also override the status colors:
 
@@ -76,7 +77,9 @@ Requirements:
 
 ## What TPM sets up
 
-By default, the TPM plugin also installs the bundled `opencode` plugin by creating these symlinks:
+With the recommended settings above, the tmux plugin manages the bundled `opencode` plugin, the Pi extension, and the Codex and Claude hook installs for you.
+
+It installs the bundled `opencode` plugin by creating these symlinks:
 
 ```text
 ~/.config/opencode/plugins/coding-agents-tmux.ts
@@ -134,7 +137,7 @@ It also installs or updates Codex hook integration under:
 ~/.codex/hooks.json
 ```
 
-It can also install or update Claude Code hook integration under:
+With the recommended `@coding-agents-tmux-auto-install 'opencode,pi,codex,claude'` setting, it also installs or updates Claude Code hook integration under:
 
 ```text
 ~/.claude/settings.json
@@ -172,7 +175,7 @@ set -g @coding-agents-tmux-auto-install 'off'
 set -g @coding-agents-tmux-auto-install 'opencode,pi,codex,claude'
 ```
 
-When `@coding-agents-tmux-auto-install` is set, it takes precedence over the individual install toggles.
+The explicit `opencode,pi,codex,claude` list is the recommended README setting because it makes the intended managed installs obvious in your tmux config. When `@coding-agents-tmux-auto-install` is set, it takes precedence over the individual install toggles.
 
 ## Usage
 
